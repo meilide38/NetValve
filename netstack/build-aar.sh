@@ -39,6 +39,11 @@ go version
 echo "==> Resolve modules"
 go mod tidy
 
+# gomobile (>= 0.1.x, 2026) refuses to bind unless golang.org/x/mobile is a real
+# module dependency: it looks for a `tool` directive in go.mod. Record it here so
+# the bind step works on a clean checkout.
+GOFLAGS=-mod=mod go get -tool golang.org/x/mobile/cmd/gobind
+
 echo "==> Compile check (host arch, no cgo) before binding"
 GOFLAGS=-mod=mod go build ./...
 
