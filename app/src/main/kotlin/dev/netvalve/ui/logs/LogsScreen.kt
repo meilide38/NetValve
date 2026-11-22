@@ -22,11 +22,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.netvalve.R
 import dev.netvalve.log.LogEvent
 import dev.netvalve.log.LogLevel
 import dev.netvalve.ui.components.EmptyState
@@ -41,16 +42,14 @@ fun LogsScreen(
     viewModel: LogsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text("Logs") },
+            title = { Text(stringResource(R.string.logs_title)) },
             actions = {
-                IconButton(onClick = { viewModel.export(actions.exportLogs) }) { Icon(Icons.Filled.Share, "Export") }
-                IconButton(onClick = viewModel::clear) { Icon(Icons.Filled.Delete, "Clear") }
+                IconButton(onClick = { viewModel.export(actions.exportLogs) }) { Icon(Icons.Filled.Share, stringResource(R.string.logs_export)) }
+                IconButton(onClick = viewModel::clear) { Icon(Icons.Filled.Delete, stringResource(R.string.logs_clear)) }
             },
         )
-
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -59,47 +58,51 @@ fun LogsScreen(
                 FilterChip(
                     selected = state.minLevel == level,
                     onClick = { viewModel.setMinLevel(level) },
-                    label = { Text(level.name) },
+                    label = { Text(level.localizedLabel()) },
                 )
             }
         }
-
         OutlinedTextField(
             value = state.query,
             onValueChange = viewModel::setQuery,
-            placeholder = { Text("Filter logs") },
+            placeholder = { Text(stringResource(R.string.logs_filter)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(16.dp),
         )
-
         if (state.entries.isEmpty()) {
             EmptyState(
                 icon = Icons.Filled.Article,
-                title = "No log entries yet",
-                subtitle = "Events appear here as the tunnel runs.",
+                title = stringResource(R.string.logs_empty_title),
+                subtitle = stringResource(R.string.logs_empty_body),
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
             LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                items(state.entries) { entry -> LogRow(entry) }
+                items(state.entries) { entry -> LogRow(entry, state.use24HourTime) }
             }
         }
     }
 }
 
-private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
+private fun LogLevel.localizedLabel(): String = when (this) {
+    LogLevel.ERROR -> "错误"
+    LogLevel.WARNING -> "警告"
+    LogLevel.INFO -> "信息"
+    LogLevel.DEBUG -> "调试"
+}
 
 @Composable
-private fun LogRow(entry: LogEvent) {
+private fun LogRow(entry: LogEvent, use24HourTime: Boolean) {
     val color = when (entry.level) {
         LogLevel.ERROR -> MaterialTheme.colorScheme.error
         LogLevel.WARNING -> MaterialTheme.colorScheme.tertiary
         LogLevel.INFO -> MaterialTheme.colorScheme.onSurface
         LogLevel.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val time = rememberLogTime(entry.timestampMillis, use24HourTime)
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(
-            "${timeFormat.format(Date(entry.timestampMillis))}  ${entry.level.name.take(1)}/${entry.category.name}",
+            "$time  ${entry.level.name.take(1)}/${entry.category.name}",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontFamily = FontFamily.Monospace,
@@ -111,4 +114,10 @@ private fun LogRow(entry: LogEvent) {
             fontFamily = FontFamily.Monospace,
         )
     }
+}
+
+@Composable
+private fun rememberLogTime(timestamp: Long, use24HourTime: Boolean): String {
+    val pattern = if (use24HourTime) "HH:mm:ss" else "hh:mm:ss a"
+    return SimpleDateFormat(pattern, Locale.getDefault()).format(Date(timestamp))
 }
