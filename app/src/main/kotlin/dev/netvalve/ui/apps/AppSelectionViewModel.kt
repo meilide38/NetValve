@@ -47,9 +47,9 @@ class AppSelectionViewModel @Inject constructor(
 
     init { reload() }
 
-    val uiState: StateFlow<AppsUiState> = combine(
-        allApps, selectionRepository.selectedPackages, query, includeSystem, loading, settingsRepository.settings,
-    ) { apps, selected, q, include, isLoading, settings ->
+    private val baseUiState = combine(
+        allApps, selectionRepository.selectedPackages, query, includeSystem, loading,
+    ) { apps, selected, q, include, isLoading ->
         val filtered = apps
             .filter { q.isBlank() || it.label.contains(q, ignoreCase = true) || it.packageName.contains(q, ignoreCase = true) }
             .map { AppRowUi(it, it.packageName in selected) }
@@ -58,14 +58,19 @@ class AppSelectionViewModel @Inject constructor(
             query = q,
             includeSystem = include,
             loading = isLoading,
-            bulkSettings = settings,
         )
-    }.combine(controller.status) { base, status ->
-        base.copy(
-            pendingRestart = pendingRestart.value && status.isActive,
-            tunnelActive = status.isActive,
-        )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppsUiState())
+    }.combine(settingsRepository.settings) { base, settings ->
+        base.copy(bulkSettings = settings)
+    }
+
+    val uiState: StateFlow<AppsUiState> = baseUiState
+        .combine(controller.status) { base, status ->
+            base.copy(
+                pendingRestart = pendingRestart.value && status.isActive,
+                tunnelActive = status.isActive,
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppsUiState())
 
     fun setQuery(q: String) { query.value = q }
 
