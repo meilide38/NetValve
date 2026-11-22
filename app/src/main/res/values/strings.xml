@@ -289,4 +289,12 @@
 
 
 
+    <string name="log_category_system">System</string>
+    <string name="log_category_connection_open">Connection opened</string>
+    <string name="log_category_connection_close">Connection closed</string>
+    <string name="log_category_throttle">Throttling</string>
+    <string name="log_category_rule_match">Rule matched</string>
+    <string name="log_category_block">Blocked</string>
+    <string name="log_category_dns">DNS</string>
+    <string name="log_category_error">Error</string>
 </resources>
