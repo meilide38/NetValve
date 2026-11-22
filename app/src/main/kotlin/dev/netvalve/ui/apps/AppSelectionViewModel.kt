@@ -6,6 +6,7 @@ import dev.netvalve.data.model.BandwidthLimit
 import dev.netvalve.data.model.BandwidthUnit
 import dev.netvalve.data.model.GlobalSettings
 import dev.netvalve.data.model.InstalledApp
+import dev.netvalve.data.model.SelectionMode
 import dev.netvalve.repository.AppSelectionRepository
 import dev.netvalve.repository.InstalledAppsRepository
 import dev.netvalve.repository.SettingsRepository
@@ -131,13 +132,20 @@ class AppSelectionViewModel @Inject constructor(
                     bulkEndMinute = endMinute,
                 )
             }
+            if (settingsRepository.current().selectionMode == SelectionMode.ALL_EXCEPT && controller.status.value.isActive) {
+                controller.restart()
+            }
         }
     }
 
     fun disableBulkThrottle() {
         viewModelScope.launch {
+            val wasActive = settingsRepository.current().bulkThrottleEnabled
             settingsRepository.updateSettings {
                 it.copy(bulkThrottleEnabled = false, bulkThrottlePackages = emptySet())
+            }
+            if (wasActive && settingsRepository.current().selectionMode == SelectionMode.ALL_EXCEPT && controller.status.value.isActive) {
+                controller.restart()
             }
         }
     }
