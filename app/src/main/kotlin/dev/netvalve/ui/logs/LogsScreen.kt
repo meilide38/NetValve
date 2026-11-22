@@ -29,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.netvalve.R
 import dev.netvalve.log.LogEvent
+import dev.netvalve.log.LogCategory
 import dev.netvalve.log.LogLevel
 import dev.netvalve.ui.components.EmptyState
 import dev.netvalve.ui.navigation.AppActions
@@ -91,6 +92,17 @@ private fun LogLevel.labelRes(): Int = when (this) {
     LogLevel.DEBUG -> R.string.log_level_debug
 }
 
+private fun LogCategory.labelRes(): Int = when (this) {
+    LogCategory.SYSTEM -> R.string.log_category_system
+    LogCategory.CONNECTION_OPEN -> R.string.log_category_connection_open
+    LogCategory.CONNECTION_CLOSE -> R.string.log_category_connection_close
+    LogCategory.THROTTLE -> R.string.log_category_throttle
+    LogCategory.RULE_MATCH -> R.string.log_category_rule_match
+    LogCategory.BLOCK -> R.string.log_category_block
+    LogCategory.DNS -> R.string.log_category_dns
+    LogCategory.ERROR -> R.string.log_category_error
+}
+
 @Composable
 private fun LogRow(entry: LogEvent, use24HourTime: Boolean) {
     val color = when (entry.level) {
@@ -102,7 +114,7 @@ private fun LogRow(entry: LogEvent, use24HourTime: Boolean) {
     val time = rememberLogTime(entry.timestampMillis, use24HourTime)
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(
-            "$time  ${entry.level.name.take(1)}/${entry.category.name}",
+            "$time  ${entry.level.name.take(1)}/${stringResource(entry.category.labelRes())}",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontFamily = FontFamily.Monospace,
