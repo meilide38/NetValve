@@ -299,4 +299,23 @@
     <string name="log_category_error">Error</string>
     <string name="apps_bulk_download_limit">Download limit</string>
     <string name="apps_bulk_upload_limit">Upload limit</string>
+
+    <string name="log_msg_establish_failed">VPN 建立失败：%1$s</string>
+    <string name="log_msg_tunnel_running">隧道运行中，正在控制 %1$s 个应用</string>
+    <string name="log_msg_no_apps">仅控制已选应用，但尚未选择应用：当前没有受控应用</string>
+    <string name="log_msg_allowed_app_missing">未找到允许的应用：%1$s</string>
+    <string name="log_msg_disallowed_app_missing">未找到排除的应用：%1$s</string>
+    <string name="log_msg_paused">已暂停（流量直通）</string>
+    <string name="log_msg_resumed">已恢复</string>
+    <string name="log_msg_vpn_revoked">VPN 权限已撤销（其他 VPN 已启动或权限被收回）</string>
+    <string name="log_msg_engine_netstack">数据包引擎：%1$s（netstack，真实流量转发）</string>
+    <string name="log_msg_engine_started">隧道引擎已启动（%1$s）</string>
+    <string name="log_msg_engine_stopped">隧道引擎已停止</string>
+    <string name="log_msg_reset">已重置连接：%1$s</string>
+    <string name="log_msg_connect_failed">连接失败：%1$s</string>
+    <string name="log_msg_udp_dropped">已丢弃 UDP 流量：%1$s</string>
+    <string name="log_msg_udp_open_failed">UDP 通道打开失败：%1$s</string>
+    <string name="log_msg_udp_tail_drop">UDP 队列已满，丢弃数据包：%1$s</string>
+    <string name="log_msg_rule_matched">匹配规则：%1$s</string>
+    <string name="log_msg_protect_failed">VPN socket 保护失败：%1$s</string>
 </resources>
