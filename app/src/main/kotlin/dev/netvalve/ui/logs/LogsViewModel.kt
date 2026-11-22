@@ -20,6 +20,7 @@ data class LogsUiState(
     val entries: List<LogEvent> = emptyList(),
     val minLevel: LogLevel = LogLevel.INFO,
     val query: String = "",
+    val use24HourTime: Boolean = true,
 )
 
 @HiltViewModel
@@ -33,13 +34,13 @@ class LogsViewModel @Inject constructor(
     private val query = MutableStateFlow("")
 
     val uiState: StateFlow<LogsUiState> = combine(
-        logRepository.recent(1000), minLevel, query,
-    ) { entries, level, q ->
+        logRepository.recent(1000), minLevel, query, settingsRepository.settings,
+    ) { entries, level, q, settings ->
         val filtered = entries.filter { e ->
             e.level.ordinal >= level.ordinal &&
                 (q.isBlank() || e.message.contains(q, ignoreCase = true) || e.category.name.contains(q, ignoreCase = true))
         }
-        LogsUiState(filtered, level, q)
+        LogsUiState(filtered, level, q, settings.use24HourTime)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LogsUiState())
 
     fun setMinLevel(level: LogLevel) {
