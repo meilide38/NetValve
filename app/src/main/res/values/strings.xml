@@ -1,7 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NetValve</string>
-
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_apps">Apps</string>
+    <string name="nav_stats">Stats</string>
+    <string name="nav_logs">Logs</string>
+    <string name="apps_title">Apps</string>
+    <string name="apps_search">Search apps</string>
+    <string name="apps_show_system">Show system apps</string>
+    <string name="apps_select_all">Select all</string>
+    <string name="apps_invert">Invert</string>
+    <string name="apps_selected_count">%1$d selected</string>
+    <string name="apps_selection_changed">Selection changed — restart tunnel to apply</string>
+    <string name="action_apply">Apply</string>
+    <string name="apps_empty_title">No apps match</string>
+    <string name="apps_empty_hint">Try a different search, or enable system apps.</string>
+    <string name="apps_configure">Configure</string>
+    <string name="apps_system">system</string>
     <!-- Foreground-service notification -->
     <string name="vpn_channel_name">Tunnel status</string>
     <string name="vpn_channel_desc">Ongoing status of the local NetValve tunnel and its controls.</string>
