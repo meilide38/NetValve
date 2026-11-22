@@ -142,7 +142,7 @@
     <string name="log_level_info">信息</string>
     <string name="log_level_debug">调试</string>
     <string name="apps_bulk_download_mbps">下载限速</string>
-    <string name="apps_bulk_upload_mbps">上传限速（KB/s 或 MB/s）</string>
+    <string name="apps_bulk_upload_mbps">上传限速</string>
     <string name="apps_bulk_time_format_12">使用 12 小时制，例如下午 8:00</string>
     <string name="log_level_error">错误</string>
     <string name="log_level_warning">警告</string>
