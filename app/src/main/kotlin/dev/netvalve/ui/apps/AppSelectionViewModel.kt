@@ -2,9 +2,13 @@ package dev.netvalve.ui.apps
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.netvalve.data.model.BandwidthLimit
+import dev.netvalve.data.model.BandwidthUnit
+import dev.netvalve.data.model.GlobalSettings
 import dev.netvalve.data.model.InstalledApp
 import dev.netvalve.repository.AppSelectionRepository
 import dev.netvalve.repository.InstalledAppsRepository
+import dev.netvalve.repository.SettingsRepository
 import dev.netvalve.service.VpnController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,12 +28,14 @@ data class AppsUiState(
     val loading: Boolean = true,
     val pendingRestart: Boolean = false,
     val tunnelActive: Boolean = false,
+    val bulkSettings: GlobalSettings = GlobalSettings.Default,
 )
 
 @HiltViewModel
 class AppSelectionViewModel @Inject constructor(
     private val installedApps: InstalledAppsRepository,
     private val selectionRepository: AppSelectionRepository,
+    private val settingsRepository: SettingsRepository,
     private val controller: VpnController,
 ) : ViewModel() {
 
@@ -42,18 +48,20 @@ class AppSelectionViewModel @Inject constructor(
     init { reload() }
 
     val uiState: StateFlow<AppsUiState> = combine(
-        allApps, selectionRepository.selectedPackages, query, includeSystem, loading,
-    ) { apps, selected, q, _, isLoading ->
+        allApps, selectionRepository.selectedPackages, query, includeSystem, loading, settingsRepository.settings,
+    ) { apps, selected, q, include, isLoading, settings ->
         val filtered = apps
             .filter { q.isBlank() || it.label.contains(q, ignoreCase = true) || it.packageName.contains(q, ignoreCase = true) }
             .map { AppRowUi(it, it.packageName in selected) }
-        Triple(filtered, isLoading, selected)
-    }.combine(controller.status) { triple, status ->
         AppsUiState(
-            apps = triple.first,
-            query = query.value,
-            includeSystem = includeSystem.value,
-            loading = triple.second,
+            apps = filtered,
+            query = q,
+            includeSystem = include,
+            loading = isLoading,
+            bulkSettings = settings,
+        )
+    }.combine(controller.status) { base, status ->
+        base.copy(
             pendingRestart = pendingRestart.value && status.isActive,
             tunnelActive = status.isActive,
         )
@@ -93,6 +101,39 @@ class AppSelectionViewModel @Inject constructor(
             }
             selectionRepository.setSelected(current)
             markRestartIfNeeded()
+        }
+    }
+
+    /** Apply one shared cap and daily local-time window to the currently selected package set. */
+    fun saveBulkThrottle(
+        downloadMbps: Long?,
+        uploadMbps: Long?,
+        startMinute: Int,
+        endMinute: Int,
+    ) {
+        viewModelScope.launch {
+            val packages = selectionRepository.current()
+            if (packages.isEmpty() || startMinute == endMinute) return@launch
+            settingsRepository.updateSettings { current ->
+                current.copy(
+                    bulkThrottlePackages = packages,
+                    bulkThrottleEnabled = true,
+                    bulkDownload = downloadMbps?.let { BandwidthLimit(it, BandwidthUnit.MBPS, true) }
+                        ?: BandwidthLimit.Unlimited,
+                    bulkUpload = uploadMbps?.let { BandwidthLimit(it, BandwidthUnit.MBPS, true) }
+                        ?: BandwidthLimit.Unlimited,
+                    bulkStartMinute = startMinute,
+                    bulkEndMinute = endMinute,
+                )
+            }
+        }
+    }
+
+    fun disableBulkThrottle() {
+        viewModelScope.launch {
+            settingsRepository.updateSettings {
+                it.copy(bulkThrottleEnabled = false, bulkThrottlePackages = emptySet())
+            }
         }
     }
 
