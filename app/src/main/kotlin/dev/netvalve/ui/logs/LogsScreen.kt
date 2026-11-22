@@ -104,6 +104,36 @@ private fun LogCategory.labelRes(): Int = when (this) {
 }
 
 @Composable
+private fun localizeLogMessage(message: String): String = when {
+    message.startsWith("establish failed: ") ->
+        stringResource(R.string.log_msg_establish_failed, message.substringAfter("establish failed: "))
+    message.startsWith("Tunnel running; controlling ") ->
+        stringResource(R.string.log_msg_tunnel_running, message.substringAfter("controlling ").substringBefore(" app"))
+    message == "ONLY_SELECTED with no apps selected: controlling nothing" ->
+        stringResource(R.string.log_msg_no_apps)
+    message.startsWith("allowed app not found: ") ->
+        stringResource(R.string.log_msg_allowed_app_missing, message.substringAfter("allowed app not found: "))
+    message.startsWith("disallowed app not found: ") ->
+        stringResource(R.string.log_msg_disallowed_app_missing, message.substringAfter("disallowed app not found: "))
+    message == "Paused (passthrough)" -> stringResource(R.string.log_msg_paused)
+    message == "Resumed" -> stringResource(R.string.log_msg_resumed)
+    message.startsWith("VPN revoked") -> stringResource(R.string.log_msg_vpn_revoked)
+    message.startsWith("Packet engine: ") && message.contains("(netstack, real forwarding)") ->
+        stringResource(R.string.log_msg_engine_netstack, message.substringAfter("Packet engine: ").substringBefore(" ("))
+    message.startsWith("Tunnel engine started (") ->
+        stringResource(R.string.log_msg_engine_started, message.substringAfter("Tunnel engine started (").removeSuffix(")").replace("ipv6=", "IPv6=").replace("exemptDns=", "DNS exempt="))
+    message == "Tunnel engine stopped" -> stringResource(R.string.log_msg_engine_stopped)
+    message.startsWith("reset ") -> stringResource(R.string.log_msg_reset, message.removePrefix("reset "))
+    message.startsWith("connect failed ") -> stringResource(R.string.log_msg_connect_failed, message.removePrefix("connect failed "))
+    message.startsWith("drop udp ") -> stringResource(R.string.log_msg_udp_dropped, message.removePrefix("drop udp "))
+    message.startsWith("udp open failed ") -> stringResource(R.string.log_msg_udp_open_failed, message.removePrefix("udp open failed "))
+    message.startsWith("udp tail-drop ") -> stringResource(R.string.log_msg_udp_tail_drop, message.removePrefix("udp tail-drop "))
+    message.startsWith("matched ") -> stringResource(R.string.log_msg_rule_matched, message.removePrefix("matched ").replace(" for ", "，连接 "))
+    message.startsWith("protect() failed for ") -> stringResource(R.string.log_msg_protect_failed, message.removePrefix("protect() failed for "))
+    else -> message
+}
+
+@Composable
 private fun LogRow(entry: LogEvent, use24HourTime: Boolean) {
     val color = when (entry.level) {
         LogLevel.ERROR -> MaterialTheme.colorScheme.error
@@ -120,7 +150,7 @@ private fun LogRow(entry: LogEvent, use24HourTime: Boolean) {
             fontFamily = FontFamily.Monospace,
         )
         Text(
-            entry.message + (entry.packageName?.let { "  ($it)" } ?: ""),
+            localizeLogMessage(entry.message) + (entry.packageName?.let { "  ($it)" } ?: ""),
             style = MaterialTheme.typography.bodyMedium,
             color = color,
             fontFamily = FontFamily.Monospace,
