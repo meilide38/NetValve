@@ -1,6 +1,15 @@
 name: Build NetValve 1.0.1 (gVisor netstack)
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "netstack/**"
+      - "gradle/**"
+      - "*.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/netstack-release.yml"
   push:
     branches: [main]
     paths:
@@ -100,6 +109,7 @@ jobs:
           retention-days: 30
 
       - name: Publish stable GitHub Release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.1
