@@ -54,20 +54,35 @@ jobs:
           chmod +x build-aar.sh
           ./build-aar.sh arm64
 
-      - name: Generate release signing key
+      - name: Provide release signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          keytool -genkeypair -v \
-            -keystore app/release.keystore \
-            -alias netvalve \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass netvalve2024 -keypass netvalve2024 \
-            -dname "CN=NetValve, OU=Mobile, O=NetValve, L=Internet, ST=NA, C=US"
-          cat > keystore.properties <<'EOF'
-          storeFile=release.keystore
-          storePassword=netvalve2024
-          keyAlias=netvalve
-          keyPassword=netvalve2024
-          EOF
+          # Stable key from repo secrets keeps every CI build installable over the
+          # previous one; without the secret we fall back to a throwaway key.
+          if [ -n "$KEYSTORE_B64" ]; then
+            printf '%s' "$KEYSTORE_B64" | base64 -d > app/release.keystore
+            ALIAS="${KEY_ALIAS:-netvalve}"
+            echo "Using persistent release keystore (alias=$ALIAS)"
+          else
+            STORE_PASSWORD="netvalve2024"; KEY_PASSWORD="netvalve2024"; ALIAS="netvalve"
+            keytool -genkeypair -v \
+              -keystore app/release.keystore \
+              -alias "$ALIAS" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$STORE_PASSWORD" -keypass "$KEY_PASSWORD" \
+              -dname "CN=NetValve, OU=Mobile, O=NetValve, L=Internet, ST=NA, C=US"
+            echo "::warning::RELEASE_KEYSTORE_B64 is not set - using a throwaway signing key"
+          fi
+          {
+            echo "storeFile=release.keystore"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > keystore.properties
 
       - name: Build release APK
         run: |
@@ -81,7 +96,7 @@ jobs:
         run: |
           APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
           echo "Built: $APK"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" || true
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK"
           mkdir -p dist
           cp "$APK" dist/NetValve-1.0.0-release.apk
           ls -lh dist
