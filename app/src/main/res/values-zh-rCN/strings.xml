@@ -1,151 +1,292 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NetValve</string>
+
     <string name="nav_dashboard">首页</string>
+
     <string name="nav_apps">应用</string>
+
     <string name="nav_stats">统计</string>
+
     <string name="nav_logs">日志</string>
+
     <string name="apps_title">应用</string>
+
     <string name="apps_search">搜索应用</string>
+
     <string name="apps_show_system">显示系统应用</string>
+
     <string name="apps_select_all">全选</string>
+
     <string name="apps_invert">反选</string>
+
     <string name="apps_selected_count">已选择 %1$d 个</string>
+
     <string name="apps_selection_changed">选择已更改，重启隧道后生效</string>
+
     <string name="apps_bulk_throttle">给选中应用批量限速</string>
+
     <string name="apps_bulk_throttle_edit">修改批量限速</string>
+
     <string name="apps_bulk_throttle_active">已为 %1$d 个应用设置定时限速</string>
+
     <string name="apps_bulk_throttle_title">批量应用限速</string>
+
     <string name="apps_bulk_throttle_hint">为选中的应用统一设置网速和每天的生效时段。某个方向留空表示不限速。</string>
+
     <string name="apps_bulk_download_mbps">下载限速（Mbps）</string>
+
     <string name="apps_bulk_upload_mbps">上传限速（Mbps）</string>
+
     <string name="apps_bulk_start_time">开始时间</string>
+
     <string name="apps_bulk_end_time">结束时间</string>
+
     <string name="apps_bulk_time_format">使用 24 小时制，例如 20:00</string>
+
     <string name="apps_bulk_invalid">至少填写一个大于 0 的限速，并输入有效且不同的开始、结束时间。</string>
+
     <string name="apps_bulk_disable">关闭批量规则</string>
+
     <string name="apps_bulk_save">保存定时规则</string>
+
     <string name="action_apply">应用更改</string>
+
     <string name="apps_empty_title">没有匹配的应用</string>
+
     <string name="apps_empty_hint">请尝试其他搜索词，或开启系统应用显示。</string>
+
     <string name="apps_configure">配置</string>
+
     <string name="apps_system">系统应用</string>
+
     <string name="vpn_channel_name">隧道状态</string>
+
     <string name="vpn_channel_desc">NetValve 本地隧道及其控制状态。</string>
+
     <string name="vpn_notification_title">NetValve 隧道运行中</string>
+
     <string name="vpn_notification_text">%1$d 个应用 · 下载 %2$s · 上传 %3$s</string>
+
     <string name="action_stop">停止</string>
+
     <string name="action_pause_all">暂停</string>
+
     <string name="action_back">返回</string>
+
     <string name="action_save">保存</string>
+
     <string name="stats_downloaded">已下载</string>
+
     <string name="stats_uploaded">已上传</string>
+
     <string name="stats_live_down_up">实时下载 / 上传</string>
+
     <string name="detail_this_app">当前应用</string>
+
     <string name="detail_access">访问控制</string>
+
     <string name="detail_block_all_traffic">阻止所有流量</string>
+
     <string name="detail_rule_enabled">启用规则</string>
+
     <string name="detail_bandwidth_limits">带宽限制</string>
+
     <string name="detail_download_cap">下载限速</string>
+
     <string name="detail_upload_cap">上传限速</string>
+
     <string name="detail_background_only">仅在后台时限速</string>
+
     <string name="detail_conditions_optional">生效条件（可选）</string>
+
     <string name="detail_conditions_hint">只有所有已选条件同时满足时，规则才会生效。</string>
+
     <string name="network_wifi">Wi-Fi</string>
+
     <string name="network_mobile">移动网络</string>
+
     <string name="network_roaming">漫游</string>
+
     <string name="network_charging">充电中</string>
+
     <string name="detail_battery_below">仅在电量低于 %1$d%% 时生效</string>
+
     <string name="detail_schedule_optional">定时规则（可选）</string>
+
     <string name="detail_enable_schedule">启用定时</string>
+
     <string name="detail_start">开始时间</string>
+
     <string name="detail_end">结束时间</string>
+
     <string name="detail_usage_warning">流量用量警告</string>
+
     <string name="detail_warn_at_percent">达到限额的 %1$d%% 时提醒</string>
+
     <string name="detail_save_rule">保存规则</string>
+
     <string name="detail_clear_rule">清除规则</string>
+
     <string name="day_mon">周一</string>
+
     <string name="day_tue">周二</string>
+
     <string name="day_wed">周三</string>
+
     <string name="day_thu">周四</string>
+
     <string name="day_fri">周五</string>
+
     <string name="day_sat">周六</string>
+
     <string name="day_sun">周日</string>
 
+
     <string name="dash_engine_title">开发引擎（回环模式）</string>
+
     <string name="dash_engine_body">此版本不会转发真实网络流量。正式使用请构建并启用 gVisor netstack 引擎。</string>
+
     <string name="dash_usage_title">开启使用情况访问权限</string>
+
     <string name="dash_usage_body">仅在后台限速需要此权限，用于判断哪个应用正在前台运行。</string>
+
     <string name="dash_usage_button">授予使用情况访问权限</string>
+
     <string name="dash_battery_title">允许后台运行</string>
+
     <string name="dash_battery_body">将 NetValve 加入电池优化白名单，避免隧道在后台被系统停止。</string>
+
     <string name="dash_battery_button">电池设置</string>
+
     <string name="dash_vendor_settings">厂商设置</string>
+
     <string name="dash_protected">保护中</string>
+
     <string name="dash_paused">已暂停（流量直通）</string>
+
     <string name="dash_starting">正在启动…</string>
+
     <string name="dash_error">错误</string>
+
     <string name="dash_revoked">权限已撤销</string>
+
     <string name="dash_off">已关闭</string>
+
     <string name="dash_session">运行时长：%1$s</string>
+
     <string name="dash_download">下载</string>
+
     <string name="dash_upload">上传</string>
+
     <string name="dash_active">活动连接</string>
+
     <string name="dash_resume">恢复限速</string>
+
     <string name="dash_pause">暂停全部</string>
+
     <string name="dash_controlled_apps">受控应用</string>
+
     <string name="dash_selected_count">已选择 %1$d 个</string>
+
     <string name="dash_all_except">全部应用（排除 %1$d 个）</string>
+
     <string name="dash_active_rules">%1$s · %2$d 条生效规则</string>
+
     <string name="dash_no_apps">尚未选择应用。请选择需要通过隧道转发的应用。</string>
+
     <string name="dash_manage_apps">管理应用</string>
+
     <string name="dash_tunnel_settings">隧道设置</string>
+
     <string name="dash_only_selected">仅控制已选应用</string>
+
     <string name="dash_ipv6">转发 IPv6（关闭则快速拒绝）</string>
+
     <string name="dash_dns">DNS 流量不参与限速</string>
+
     <string name="dash_autostart">开机后自动启动</string>
+
     <string name="time_format_title">时间格式</string>
+
     <string name="time_format_24">24 小时制</string>
+
     <string name="time_format_12">12 小时制</string>
+
     <string name="stats_title">统计</string>
+
     <string name="stats_reset">重置</string>
+
     <string name="stats_totals">流量汇总</string>
+
     <string name="stats_connections">连接统计</string>
+
     <string name="stats_live_down">实时下载 ↓</string>
+
     <string name="stats_avg_down">平均下载 ↓</string>
+
     <string name="stats_peak_down">峰值下载 ↓</string>
+
     <string name="stats_live_up">实时上传 ↑</string>
+
     <string name="stats_avg_up">平均上传 ↑</string>
+
     <string name="stats_peak_up">峰值上传 ↑</string>
+
     <string name="stats_active">活动连接</string>
+
     <string name="stats_throttled">限速连接（本次）</string>
+
     <string name="stats_blocked">拦截连接（本次）</string>
+
     <string name="stats_dns_queries">DNS 查询</string>
+
     <string name="stats_latency">平均连接延迟</string>
+
     <string name="stats_session">本次运行时长</string>
+
     <string name="stats_empty_title">暂无流量记录</string>
+
     <string name="stats_empty_body">开启隧道并使用受控应用后，这里会显示流量统计。</string>
+
     <string name="stats_per_app">按应用统计</string>
+
     <string name="stats_live">● 实时</string>
+
     <string name="stats_total_down">↓ 总下载</string>
+
     <string name="stats_total_up">↑ 总上传</string>
+
     <string name="stats_live_down_short">↓ 实时下载</string>
+
     <string name="stats_live_up_short">↑ 实时上传</string>
+
     <string name="logs_title">日志</string>
+
     <string name="logs_export">导出</string>
+
     <string name="logs_clear">清空</string>
+
     <string name="logs_filter">筛选日志</string>
+
     <string name="logs_empty_title">暂无日志</string>
+
     <string name="logs_empty_body">隧道运行期间产生的事件会显示在这里。</string>
+
     <string name="log_level_error">错误</string>
+
     <string name="log_level_warning">警告</string>
+
     <string name="log_level_info">信息</string>
+
     <string name="log_level_debug">调试</string>
-    <string name="apps_bulk_download_mbps">下载限速</string>
-    <string name="apps_bulk_upload_mbps">上传限速</string>
+
+
+
     <string name="apps_bulk_time_format_12">使用 12 小时制，例如下午 8:00</string>
-    <string name="log_level_error">错误</string>
-    <string name="log_level_warning">警告</string>
-    <string name="log_level_info">信息</string>
-    <string name="log_level_debug">调试</string>
+
+
+
+
+
 </resources>
