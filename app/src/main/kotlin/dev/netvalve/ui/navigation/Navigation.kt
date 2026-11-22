@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -22,16 +23,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import dev.netvalve.R
 import dev.netvalve.ui.appdetail.AppDetailScreen
 import dev.netvalve.ui.apps.AppsScreen
 import dev.netvalve.ui.dashboard.DashboardScreen
 import dev.netvalve.ui.logs.LogsScreen
 import dev.netvalve.ui.stats.StatsScreen
 
-/**
- * Activity-provided callbacks that require an Activity/Context (VPN consent,
- * settings intents, share sheet). Passed down so ViewModels/screens stay pure.
- */
 data class AppActions(
     val toggleVpn: (Boolean) -> Unit,
     val restartTunnel: () -> Unit,
@@ -41,11 +39,11 @@ data class AppActions(
     val exportLogs: (String) -> Unit,
 )
 
-sealed class Destination(val route: String, val label: String, val icon: ImageVector) {
-    data object Dashboard : Destination("dashboard", "Dashboard", Icons.Filled.Shield)
-    data object Apps : Destination("apps", "Apps", Icons.Filled.Apps)
-    data object Stats : Destination("stats", "Stats", Icons.Filled.QueryStats)
-    data object Logs : Destination("logs", "Logs", Icons.Filled.Article)
+sealed class Destination(val route: String, val labelRes: Int, val icon: ImageVector) {
+    data object Dashboard : Destination("dashboard", R.string.nav_dashboard, Icons.Filled.Shield)
+    data object Apps : Destination("apps", R.string.nav_apps, Icons.Filled.Apps)
+    data object Stats : Destination("stats", R.string.nav_stats, Icons.Filled.QueryStats)
+    data object Logs : Destination("logs", R.string.nav_logs, Icons.Filled.Article)
 
     companion object {
         val bottomBar = listOf(Dashboard, Apps, Stats, Logs)
@@ -63,6 +61,7 @@ fun NetValveNavGraph(actions: AppActions) {
             val currentRoute = backStack?.destination?.route
             NavigationBar {
                 Destination.bottomBar.forEach { dest ->
+                    val label = stringResource(dest.labelRes)
                     NavigationBarItem(
                         selected = currentRoute == dest.route,
                         onClick = {
@@ -72,8 +71,8 @@ fun NetValveNavGraph(actions: AppActions) {
                                 restoreState = true
                             }
                         },
-                        icon = { Icon(dest.icon, contentDescription = dest.label) },
-                        label = { Text(dest.label) },
+                        icon = { Icon(dest.icon, contentDescription = label) },
+                        label = { Text(label) },
                     )
                 }
             }
