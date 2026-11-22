@@ -77,9 +77,11 @@ class RuleEngine(
             return snap.settings.selectionMode == SelectionMode.ALL_EXCEPT
         }
         val anySelected = pkgs.any { it in snap.selected }
+        val bulkTarget = snap.settings.bulkThrottleEnabled &&
+            pkgs.any { it in snap.settings.bulkThrottlePackages }
         return when (snap.settings.selectionMode) {
             SelectionMode.ONLY_SELECTED -> anySelected
-            SelectionMode.ALL_EXCEPT -> !anySelected
+            SelectionMode.ALL_EXCEPT -> bulkTarget || !anySelected
         }
     }
 
@@ -87,7 +89,9 @@ class RuleEngine(
     fun policyForUid(uid: Int): EffectivePolicy {
         val snap = snapshot.value
         val pkgs = appInfo.packagesForUid(uid)
-        val pkg = pkgs.firstOrNull { snap.rules[it]?.isActive == true } ?: pkgs.firstOrNull()
+        val pkg = pkgs.firstOrNull { snap.settings.bulkThrottleEnabled && it in snap.settings.bulkThrottlePackages }
+            ?: pkgs.firstOrNull { snap.rules[it]?.isActive == true }
+            ?: pkgs.firstOrNull()
         val appRule: AppRule? = pkg?.let { snap.rules[it] }
         val ctx = snap.device.toEvaluationContext(pkg ?: "", clock())
         val policy = evaluator.evaluate(
