@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NetValve</string>
+
+    <!-- Foreground-service notification -->
+    <string name="vpn_channel_name">Tunnel status</string>
+    <string name="vpn_channel_desc">Ongoing status of the local NetValve tunnel and its controls.</string>
+    <string name="vpn_notification_title">NetValve tunnel active</string>
+    <string name="vpn_notification_text">%1$d apps · ↓ %2$s · ↑ %3$s</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_pause_all">Pause</string>
+</resources>

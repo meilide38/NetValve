@@ -57,7 +57,7 @@ jobs:
       - name: Generate release signing key
         run: |
           keytool -genkeypair -v \
-            -keystore release.keystore \
+            -keystore app/release.keystore \
             -alias netvalve \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass netvalve2024 -keypass netvalve2024 \
