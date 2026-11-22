@@ -1,4 +1,4 @@
-name: Build NetValve 1.0.1 (gVisor netstack)
+name: Build NetValve 1.0.2 (gVisor netstack)
 
 on:
   pull_request:
@@ -96,9 +96,9 @@ jobs:
           test -n "$APK"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='dev.netvalve' versionCode='3' versionName='1.0.1'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='dev.netvalve' versionCode='4' versionName='1.0.2'"
           mkdir -p release
-          cp "$APK" release/NetValve-1.0.1-netstack-arm64.apk
+          cp "$APK" release/NetValve-1.0.2-netstack-arm64.apk
 
       - name: Upload APK artifact (fallback download)
         uses: actions/upload-artifact@v4
@@ -112,8 +112,8 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.1
-          name: NetValve 1.0.1 (gVisor netstack)
+          tag_name: v1.0.2
+          name: NetValve 1.0.2 (gVisor netstack)
           prerelease: false
           make_latest: true
           generate_release_notes: true
