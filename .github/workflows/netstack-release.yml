@@ -42,18 +42,25 @@ jobs:
 
       - name: Configure release signing
         env:
-          KEYSTORE_BASE64: ${{ secrets.NETVALVE_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.NETVALVE_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.NETVALVE_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.NETVALVE_KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
             echo "::error::Release signing secrets are missing. Configure NETVALVE_KEYSTORE_BASE64, NETVALVE_KEYSTORE_PASSWORD, NETVALVE_KEY_ALIAS and NETVALVE_KEY_PASSWORD in repository Actions secrets."
             exit 1
           fi
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > app/netvalve-release.jks
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > app/release.keystore
+          ACTUAL_FINGERPRINT="$(keytool -list -v -keystore app/release.keystore -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>/dev/null | awk -F': ' '/SHA256:/{gsub(":", "", $2); print toupper($2); exit}')"
+          EXPECTED_FINGERPRINT="FD17894DF779A2D7D1B4319FC28B9303D717100786354E6698C54352707DB2F1"
+          echo "Signing certificate SHA-256: $ACTUAL_FINGERPRINT"
+          if [ "$ACTUAL_FINGERPRINT" != "$EXPECTED_FINGERPRINT" ]; then
+            echo "::error::Signing key does not match NetValve 1.0.0. Refusing to publish an incompatible APK."
+            exit 1
+          fi
           cat > keystore.properties <<EOF
-          storeFile=netvalve-release.jks
+          storeFile=release.keystore
           storePassword=$KEYSTORE_PASSWORD
           keyAlias=$KEY_ALIAS
           keyPassword=$KEY_PASSWORD
