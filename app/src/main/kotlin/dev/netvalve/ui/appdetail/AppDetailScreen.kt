@@ -136,8 +136,8 @@ fun AppDetailScreen(
                 SwitchRow(stringResource(R.string.detail_enable_schedule), d.scheduleEnabled) { viewModel.edit { r -> r.copy(scheduleEnabled = it) } }
                 if (d.scheduleEnabled) {
                     Spacer(Modifier.height(8.dp))
-                    HourStepper(stringResource(R.string.detail_start), d.startHour) { viewModel.edit { r -> r.copy(startHour = it) } }
-                    HourStepper(stringResource(R.string.detail_end), d.endHour) { viewModel.edit { r -> r.copy(endHour = it) } }
+                    HourStepper(stringResource(R.string.detail_start), d.startHour, state.use24HourTime) { viewModel.edit { r -> r.copy(startHour = it) } }
+                    HourStepper(stringResource(R.string.detail_end), d.endHour, state.use24HourTime) { viewModel.edit { r -> r.copy(endHour = it) } }
                     Spacer(Modifier.height(8.dp))
                     DayPicker(d.days) { day ->
                         viewModel.edit { r -> r.copy(days = r.days.toMutableSet().apply { if (!add(day)) remove(day) }) }
@@ -204,7 +204,7 @@ private fun CapEditor(
 }
 
 @Composable
-private fun HourStepper(label: String, hour: Int, onChange: (Int) -> Unit) {
+private fun HourStepper(label: String, hour: Int, use24HourTime: Boolean, onChange: (Int) -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -213,7 +213,11 @@ private fun HourStepper(label: String, hour: Int, onChange: (Int) -> Unit) {
         Text(label, Modifier.weight(1f))
         OutlinedButton(onClick = { onChange((hour + 23) % 24) }) { Text("−") }
         Spacer(Modifier.width(8.dp))
-        Text("%02d:00".format(hour), style = MaterialTheme.typography.titleMedium)
+        Text(
+            if (use24HourTime) "%02d:00".format(hour)
+            else "%d:00 %s".format(if (hour % 12 == 0) 12 else hour % 12, if (hour < 12) "AM" else "PM"),
+            style = MaterialTheme.typography.titleMedium,
+        )
         Spacer(Modifier.width(8.dp))
         OutlinedButton(onClick = { onChange((hour + 1) % 24) }) { Text("+") }
     }
