@@ -29,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import dev.netvalve.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.netvalve.BuildConfig
@@ -62,15 +64,13 @@ fun DashboardScreen(
                 item {
                     SectionCard {
                         Text(
-                            "Development engine (loopback)",
+                            stringResource(R.string.dash_engine_title),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.error,
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "This build does NOT forward traffic upstream, so controlled apps will lose " +
-                                "connectivity while the tunnel is on (this is not a throttling bug). Build the " +
-                                "netstack engine (./netstack/build-aar.sh, then -Pnetvalve.netstack=true) for real traffic.",
+                            stringResource(R.string.dash_engine_body),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -82,9 +82,9 @@ fun DashboardScreen(
                 item {
                     SetupCard(
                         icon = { Icon(Icons.Filled.Visibility, null) },
-                        title = "Enable usage access",
-                        body = "Needed so \"throttle in background only\" rules can tell which app is in the foreground. NetValve works without it, but background-only rules stay inactive.",
-                        buttonText = "Grant usage access",
+                        title = stringResource(R.string.dash_usage_title),
+                        body = stringResource(R.string.dash_usage_body),
+                        buttonText = stringResource(R.string.dash_usage_button),
                         onClick = actions.requestUsageAccess,
                     )
                 }
@@ -93,11 +93,11 @@ fun DashboardScreen(
                 item {
                     SetupCard(
                         icon = { Icon(Icons.Filled.BatteryAlert, null) },
-                        title = "Allow background running",
-                        body = "Exempt NetValve from battery optimization so the tunnel isn't killed in Doze. Some vendors need an extra auto-start step.",
-                        buttonText = "Fix battery settings",
+                        title = stringResource(R.string.dash_battery_title),
+                        body = stringResource(R.string.dash_battery_body),
+                        buttonText = stringResource(R.string.dash_battery_button),
                         onClick = actions.requestBatteryExemption,
-                        secondaryText = "Vendor settings",
+                        secondaryText = stringResource(R.string.dash_vendor_settings),
                         onSecondary = actions.openVendorSettings,
                     )
                 }
@@ -117,12 +117,12 @@ private fun StatusHero(state: DashboardUiState, actions: AppActions, onPauseResu
             Column(Modifier.weight(1f)) {
                 Text(
                     when (state.status.state) {
-                        TunnelState.RUNNING -> "Protected"
-                        TunnelState.PAUSED -> "Paused (passthrough)"
-                        TunnelState.STARTING -> "Starting…"
-                        TunnelState.ERROR -> "Error"
-                        TunnelState.REVOKED -> "Revoked"
-                        TunnelState.STOPPED -> "Off"
+                        TunnelState.RUNNING -> stringResource(R.string.dash_protected)
+                        TunnelState.PAUSED -> stringResource(R.string.dash_paused)
+                        TunnelState.STARTING -> stringResource(R.string.dash_starting)
+                        TunnelState.ERROR -> stringResource(R.string.dash_error)
+                        TunnelState.REVOKED -> stringResource(R.string.dash_revoked)
+                        TunnelState.STOPPED -> stringResource(R.string.dash_off)
                     },
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.SemiBold,
@@ -132,7 +132,7 @@ private fun StatusHero(state: DashboardUiState, actions: AppActions, onPauseResu
                 }
                 if (state.running) {
                     Text(
-                        "Session ${Format.duration(state.stats.sessionDurationMillis)}",
+                        stringResource(R.string.dash_session, Format.duration(state.stats.sessionDurationMillis)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -145,16 +145,16 @@ private fun StatusHero(state: DashboardUiState, actions: AppActions, onPauseResu
         }
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            StatTile("Download", Format.rate(state.stats.liveDownloadBps))
-            StatTile("Upload", Format.rate(state.stats.liveUploadBps))
-            StatTile("Active", state.stats.activeConnections.toString())
+            StatTile(stringResource(R.string.dash_download), Format.rate(state.stats.liveDownloadBps))
+            StatTile(stringResource(R.string.dash_upload), Format.rate(state.stats.liveUploadBps))
+            StatTile(stringResource(R.string.dash_active), state.stats.activeConnections.toString())
         }
         if (state.running) {
             Spacer(Modifier.height(12.dp))
             FilledTonalButton(onClick = onPauseResume) {
                 Icon(Icons.Filled.Bolt, null)
                 Spacer(Modifier.width(8.dp))
-                Text(if (state.status.state == TunnelState.PAUSED) "Resume shaping" else "Pause all")
+                Text(if (state.status.state == TunnelState.PAUSED) stringResource(R.string.dash_resume) else stringResource(R.string.dash_pause))
             }
         }
     }
@@ -190,16 +190,16 @@ private fun SetupCard(
 
 @Composable
 private fun SummaryCard(state: DashboardUiState, onOpenApps: () -> Unit, onOpenApp: (String) -> Unit) {
-    SectionCard(title = "Controlled apps") {
+    SectionCard(title = stringResource(R.string.dash_controlled_apps)) {
         val modeText = when (state.settings.selectionMode) {
-            SelectionMode.ONLY_SELECTED -> "${state.selectedCount} selected"
-            SelectionMode.ALL_EXCEPT -> "All except ${state.selectedCount}"
+            SelectionMode.ONLY_SELECTED -> stringResource(R.string.dash_selected_count, state.selectedCount)
+            SelectionMode.ALL_EXCEPT -> stringResource(R.string.dash_all_except, state.selectedCount)
         }
-        Text("$modeText · ${state.activeRuleCount} active rule(s)", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.dash_active_rules, modeText, state.activeRuleCount), style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(10.dp))
         if (state.controlledApps.isEmpty()) {
             Text(
-                "No apps selected yet. Pick apps to route through the tunnel.",
+                stringResource(R.string.dash_no_apps),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -211,17 +211,17 @@ private fun SummaryCard(state: DashboardUiState, onOpenApps: () -> Unit, onOpenA
             }
         }
         Spacer(Modifier.height(12.dp))
-        Button(onClick = onOpenApps) { Text("Manage apps") }
+        Button(onClick = onOpenApps) { Text(stringResource(R.string.dash_manage_apps)) }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsCard(state: DashboardUiState, viewModel: DashboardViewModel) {
-    SectionCard(title = "Tunnel settings") {
+    SectionCard(title = stringResource(R.string.dash_tunnel_settings)) {
         // Selection mode
         LabeledSwitchRow(
-            label = "Only control selected apps",
+            label = stringResource(R.string.dash_only_selected),
             checked = state.settings.selectionMode == SelectionMode.ONLY_SELECTED,
             onCheckedChange = {
                 viewModel.setSelectionMode(if (it) SelectionMode.ONLY_SELECTED else SelectionMode.ALL_EXCEPT)
@@ -229,7 +229,7 @@ private fun SettingsCard(state: DashboardUiState, viewModel: DashboardViewModel)
             },
         )
         LabeledSwitchRow(
-            label = "Relay IPv6 (off = fast-reject)",
+            label = stringResource(R.string.dash_ipv6),
             checked = state.settings.ipv6Mode == Ipv6Mode.RELAY,
             onCheckedChange = {
                 viewModel.setIpv6Mode(if (it) Ipv6Mode.RELAY else Ipv6Mode.FAST_REJECT)
@@ -237,12 +237,17 @@ private fun SettingsCard(state: DashboardUiState, viewModel: DashboardViewModel)
             },
         )
         LabeledSwitchRow(
-            label = "Exempt DNS from throttling",
+            label = stringResource(R.string.dash_dns),
             checked = state.settings.exemptDns,
             onCheckedChange = { viewModel.setExemptDns(it) },
         )
         LabeledSwitchRow(
-            label = "Auto-start after reboot",
+            label = stringResource(if (state.settings.use24HourTime) R.string.time_format_24 else R.string.time_format_12),
+            checked = state.settings.use24HourTime,
+            onCheckedChange = { viewModel.set24HourTime(it) },
+        )
+        LabeledSwitchRow(
+            label = stringResource(R.string.dash_autostart),
             checked = state.settings.autoStartOnBoot,
             onCheckedChange = { viewModel.setAutoStart(it) },
         )
