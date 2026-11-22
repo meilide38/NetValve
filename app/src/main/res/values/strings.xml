@@ -143,4 +143,9 @@
     <string name="log_level_debug">Debug</string>
     <string name="apps_bulk_download_mbps">Download limit (KB/s or MB/s)</string>
     <string name="apps_bulk_upload_mbps">Upload limit (KB/s or MB/s)</string>
+    <string name="apps_bulk_time_format_12">12-hour format, for example 8:00 PM</string>
+    <string name="log_level_error">Error</string>
+    <string name="log_level_warning">Warning</string>
+    <string name="log_level_info">Info</string>
+    <string name="log_level_debug">Debug</string>
 </resources>
