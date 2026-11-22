@@ -49,6 +49,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.netvalve.R
 import dev.netvalve.data.model.BandwidthUnit
 import dev.netvalve.ui.components.EmptyState
+import java.text.DateFormatSymbols
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -276,11 +278,15 @@ private fun Int.toClockText(use24HourTime: Boolean): String {
     val hour = this / 60
     val minute = this % 60
     return if (use24HourTime) "%02d:%02d".format(hour, minute)
-    else "%d:%02d %s".format(if (hour % 12 == 0) 12 else hour % 12, minute, if (hour < 12) "AM" else "PM")
+    else "%d:%02d %s".format(
+        if (hour % 12 == 0) 12 else hour % 12,
+        minute,
+        DateFormatSymbols(Locale.getDefault()).amPmStrings[if (hour < 12) 0 else 1],
+    )
 }
 
 private fun String.toMinuteOfDay(use24HourTime: Boolean): Int? {
-    val match = Regex("^(\\d{1,2}):(\\d{2})(?:\\s*([aApP][mM]))?$").matchEntire(trim()) ?: return null
+    val match = Regex("^(\\d{1,2}):(\\d{2})(?:\\s*(AM|PM|上午|下午))?$", RegexOption.IGNORE_CASE).matchEntire(trim()) ?: return null
     var hour = match.groupValues[1].toIntOrNull() ?: return null
     val minute = match.groupValues[2].toIntOrNull() ?: return null
     val suffix = match.groupValues[3]
@@ -289,7 +295,7 @@ private fun String.toMinuteOfDay(use24HourTime: Boolean): Int? {
         if (suffix.isNotEmpty() || hour !in 0..23) return null
     } else {
         if (suffix.isEmpty() || hour !in 1..12) return null
-        hour = (hour % 12) + if (suffix.equals("PM", true)) 12 else 0
+        hour = (hour % 12) + if (suffix.equals("PM", true) || suffix == "下午") 12 else 0
     }
     return hour * 60 + minute
 }
