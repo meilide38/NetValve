@@ -1,4 +1,4 @@
-name: Build Netstack APK
+name: Build NetValve 1.0.1 (gVisor netstack)
 
 on:
   push:
@@ -33,14 +33,31 @@ jobs:
         with:
           go-version: "1.25.x"
 
-      # GitHub-hosted Ubuntu runners already include Android SDK/NDK.
-      # Avoid setup-android@v3: it requests the obsolete "tools" SDK package.
       - name: Locate Android SDK / NDK
         run: |
           echo "ANDROID_HOME=${ANDROID_SDK_ROOT:-$ANDROID_HOME}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
           test -d "$ANDROID_NDK_LATEST_HOME"
           test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+      - name: Configure release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.NETVALVE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.NETVALVE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NETVALVE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NETVALVE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Release signing secrets are missing. Configure NETVALVE_KEYSTORE_BASE64, NETVALVE_KEYSTORE_PASSWORD, NETVALVE_KEY_ALIAS and NETVALVE_KEY_PASSWORD in repository Actions secrets."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > app/netvalve-release.jks
+          cat > keystore.properties <<EOF
+          storeFile=netvalve-release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
 
       - name: Build real gVisor netstack AAR
         working-directory: netstack
@@ -50,36 +67,38 @@ jobs:
           chmod +x ./build-aar.sh
           ./build-aar.sh arm64
 
-      - name: Run unit tests and build installable APK
+      - name: Run unit tests and build production Release APK
         env:
           GOTOOLCHAIN: auto
         run: |
           chmod +x ./gradlew
-          ./gradlew :app:testDebugUnitTest :app:assembleDebug -Pnetvalve.netstack=true
+          ./gradlew :app:testDebugUnitTest :app:assembleRelease -Pnetvalve.netstack=true
 
-      - name: Verify APK
+      - name: Verify signed Release APK
         run: |
-          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name "*.apk" -print -quit)"
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name "*.apk" -print -quit)"
           test -n "$APK"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='dev.netvalve' versionCode='2' versionName='1.0.1'"
           mkdir -p release
-          cp "$APK" release/NetValve-netstack-arm64.apk
+          cp "$APK" release/NetValve-1.0.1-netstack-arm64.apk
 
       - name: Upload APK artifact (fallback download)
         uses: actions/upload-artifact@v4
         with:
-          name: NetValve-netstack-arm64
-          path: release/NetValve-netstack-arm64.apk
+          name: NetValve-1.0.1-netstack-arm64
+          path: release/NetValve-1.0.1-netstack-arm64.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
 
-      - name: Publish GitHub prerelease
+      - name: Publish stable GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: netstack-build-${{ github.run_number }}
-          name: NetValve Netstack APK (build ${{ github.run_number }})
-          prerelease: true
+          tag_name: v1.0.1
+          name: NetValve 1.0.1 (gVisor netstack)
+          prerelease: false
+          make_latest: true
           generate_release_notes: true
-          files: release/NetValve-netstack-arm64.apk
+          files: release/NetValve-1.0.1-netstack-arm64.apk
           fail_on_unmatched_files: true
