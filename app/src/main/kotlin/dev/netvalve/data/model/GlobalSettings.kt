@@ -15,6 +15,8 @@ data class GlobalSettings(
     val exemptDns: Boolean = true,
     val logLevel: Int = 1,
     val autoStartOnBoot: Boolean = false,
+    /** User-selected clock display preference. */
+    val use24HourTime: Boolean = true,
     val enabled: Boolean = false,
     /** Snapshot of selected apps targeted by the bulk scheduled throttle. */
     val bulkThrottlePackages: Set<String> = emptySet(),

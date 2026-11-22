@@ -88,6 +88,7 @@ class DashboardViewModel @Inject constructor(
     fun setIpv6Mode(mode: Ipv6Mode) = update { it.copy(ipv6Mode = mode) }
     fun setExemptDns(value: Boolean) = update { it.copy(exemptDns = value) }
     fun setAutoStart(value: Boolean) = update { it.copy(autoStartOnBoot = value) }
+    fun set24HourTime(value: Boolean) = update { it.copy(use24HourTime = value) }
 
     /** Applying a mode change while running needs a tunnel rebuild. */
     fun applyAndMaybeRestart() {

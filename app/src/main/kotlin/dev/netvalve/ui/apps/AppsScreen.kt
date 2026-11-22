@@ -49,6 +49,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.netvalve.R
 import dev.netvalve.data.model.BandwidthUnit
 import dev.netvalve.ui.components.EmptyState
+import java.text.DateFormatSymbols
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,12 +157,15 @@ fun AppsScreen(
         BulkThrottleDialog(
             initialDownload = state.bulkSettings.bulkDownload.value.takeIf { !state.bulkSettings.bulkDownload.isUnlimited }?.toString() ?: "1",
             initialUpload = state.bulkSettings.bulkUpload.value.takeIf { !state.bulkSettings.bulkUpload.isUnlimited }?.toString() ?: "1",
-            initialStart = state.bulkSettings.bulkStartMinute.toClockText(),
-            initialEnd = state.bulkSettings.bulkEndMinute.toClockText(),
+            initialStart = state.bulkSettings.bulkStartMinute.toClockText(state.bulkSettings.use24HourTime),
+            initialEnd = state.bulkSettings.bulkEndMinute.toClockText(state.bulkSettings.use24HourTime),
+            initialDownloadUnit = state.bulkSettings.bulkDownload.unit,
+            initialUploadUnit = state.bulkSettings.bulkUpload.unit,
+            use24HourTime = state.bulkSettings.use24HourTime,
             canDisable = state.bulkSettings.bulkThrottleEnabled,
             onDismiss = { showBulkDialog = false },
-            onSave = { down, up, start, end ->
-                viewModel.saveBulkThrottle(down, up, start, end)
+            onSave = { down, downUnit, up, upUnit, start, end ->
+                viewModel.saveBulkThrottle(down, downUnit, up, upUnit, start, end)
                 showBulkDialog = false
             },
             onDisable = {
@@ -177,20 +182,25 @@ private fun BulkThrottleDialog(
     initialUpload: String,
     initialStart: String,
     initialEnd: String,
+    initialDownloadUnit: BandwidthUnit,
+    initialUploadUnit: BandwidthUnit,
+    use24HourTime: Boolean,
     canDisable: Boolean,
     onDismiss: () -> Unit,
-    onSave: (Long?, Long?, Int, Int) -> Unit,
+    onSave: (Long?, BandwidthUnit, Long?, BandwidthUnit, Int, Int) -> Unit,
     onDisable: () -> Unit,
 ) {
     var download by remember(initialDownload) { mutableStateOf(initialDownload) }
     var upload by remember(initialUpload) { mutableStateOf(initialUpload) }
     var start by remember(initialStart) { mutableStateOf(initialStart) }
     var end by remember(initialEnd) { mutableStateOf(initialEnd) }
+    var downloadUnit by remember(initialDownloadUnit) { mutableStateOf(initialDownloadUnit) }
+    var uploadUnit by remember(initialUploadUnit) { mutableStateOf(initialUploadUnit) }
 
     val downValue = download.toLongOrNull()?.takeIf { it > 0 }
     val upValue = upload.toLongOrNull()?.takeIf { it > 0 }
-    val startMinute = start.toMinuteOfDay()
-    val endMinute = end.toMinuteOfDay()
+    val startMinute = start.toMinuteOfDay(use24HourTime)
+    val endMinute = end.toMinuteOfDay(use24HourTime)
     val valid = (downValue != null || upValue != null) &&
         startMinute != null && endMinute != null && startMinute != endMinute
 
@@ -203,29 +213,39 @@ private fun BulkThrottleDialog(
                 OutlinedTextField(
                     value = download,
                     onValueChange = { download = it.filter(Char::isDigit) },
-                    label = { Text(stringResource(R.string.apps_bulk_download_mbps)) },
+                    label = { Text(stringResource(R.string.apps_bulk_download_limit)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    BandwidthUnit.entries.forEach { unit ->
+                        FilterChip(selected = downloadUnit == unit, onClick = { downloadUnit = unit }, label = { Text(unit.label) })
+                    }
+                }
                 OutlinedTextField(
                     value = upload,
                     onValueChange = { upload = it.filter(Char::isDigit) },
-                    label = { Text(stringResource(R.string.apps_bulk_upload_mbps)) },
+                    label = { Text(stringResource(R.string.apps_bulk_upload_limit)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    BandwidthUnit.entries.forEach { unit ->
+                        FilterChip(selected = uploadUnit == unit, onClick = { uploadUnit = unit }, label = { Text(unit.label) })
+                    }
+                }
                 OutlinedTextField(
                     value = start,
-                    onValueChange = { start = it.take(5) },
+                    onValueChange = { start = it.take(8) },
                     label = { Text(stringResource(R.string.apps_bulk_start_time)) },
-                    supportingText = { Text(stringResource(R.string.apps_bulk_time_format)) },
+                    supportingText = { Text(stringResource(if (use24HourTime) R.string.apps_bulk_time_format else R.string.apps_bulk_time_format_12)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = end,
-                    onValueChange = { end = it.take(5) },
+                    onValueChange = { end = it.take(8) },
                     label = { Text(stringResource(R.string.apps_bulk_end_time)) },
-                    supportingText = { Text(stringResource(R.string.apps_bulk_time_format)) },
+                    supportingText = { Text(stringResource(if (use24HourTime) R.string.apps_bulk_time_format else R.string.apps_bulk_time_format_12)) },
                     singleLine = true,
                 )
                 if (!valid) {
@@ -243,7 +263,7 @@ private fun BulkThrottleDialog(
                     TextButton(onClick = onDisable) { Text(stringResource(R.string.apps_bulk_disable)) }
                 }
                 Button(
-                    onClick = { onSave(downValue, upValue, startMinute!!, endMinute!!) },
+                    onClick = { onSave(downValue, downloadUnit, upValue, uploadUnit, startMinute!!, endMinute!!) },
                     enabled = valid,
                 ) { Text(stringResource(R.string.apps_bulk_save)) }
             }
@@ -254,14 +274,29 @@ private fun BulkThrottleDialog(
     )
 }
 
-private fun Int.toClockText(): String = "%02d:%02d".format(this / 60, this % 60)
+private fun Int.toClockText(use24HourTime: Boolean): String {
+    val hour = this / 60
+    val minute = this % 60
+    return if (use24HourTime) "%02d:%02d".format(hour, minute)
+    else "%d:%02d %s".format(
+        if (hour % 12 == 0) 12 else hour % 12,
+        minute,
+        DateFormatSymbols(Locale.getDefault()).amPmStrings[if (hour < 12) 0 else 1],
+    )
+}
 
-private fun String.toMinuteOfDay(): Int? {
-    val parts = split(":")
-    if (parts.size != 2) return null
-    val hour = parts[0].toIntOrNull() ?: return null
-    val minute = parts[1].toIntOrNull() ?: return null
-    if (hour !in 0..23 || minute !in 0..59) return null
+private fun String.toMinuteOfDay(use24HourTime: Boolean): Int? {
+    val match = Regex("^(\\d{1,2}):(\\d{2})(?:\\s*(AM|PM|上午|下午))?$", RegexOption.IGNORE_CASE).matchEntire(trim()) ?: return null
+    var hour = match.groupValues[1].toIntOrNull() ?: return null
+    val minute = match.groupValues[2].toIntOrNull() ?: return null
+    val suffix = match.groupValues[3]
+    if (minute !in 0..59) return null
+    if (use24HourTime) {
+        if (suffix.isNotEmpty() || hour !in 0..23) return null
+    } else {
+        if (suffix.isEmpty() || hour !in 1..12) return null
+        hour = (hour % 12) + if (suffix.equals("PM", true) || suffix == "下午") 12 else 0
+    }
     return hour * 60 + minute
 }
 
