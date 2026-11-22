@@ -2,11 +2,13 @@ package dev.netvalve.rules
 
 import dev.netvalve.data.model.AppRule
 import dev.netvalve.data.model.GlobalSettings
+import dev.netvalve.data.model.RuleCondition
 import dev.netvalve.data.model.SelectionMode
 import dev.netvalve.repository.AppInfoLookup
 import dev.netvalve.repository.AppSelectionRepository
 import dev.netvalve.repository.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -14,19 +16,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 
 /**
- * Orchestrates the pure [PolicyEvaluator] against live state. It combines the
- * settings, per-app rules, app selection and device state into an immutable
- * [Snapshot], then answers two questions the packet path asks on every flow:
- *
- *   * [isControlled] — should this UID be shaped at all (given selection mode)?
- *   * [policyForUid] — what is the effective block/cap decision *right now*?
- *
- * Resolution happens at flow-open (and can be re-checked periodically), never
- * per-packet, so it is cheap. The class is engine-only: no Android types, so it
- * is unit-testable with fakes for every dependency.
+ * Orchestrates the pure [PolicyEvaluator] against live state.
  */
 class RuleEngine(
     private val settingsRepository: SettingsRepository,
@@ -60,23 +54,26 @@ class RuleEngine(
         )
 
     /**
-     * Monotonic revision that ticks whenever the resolved rule inputs change, so
-     * the [dev.netvalve.throttle.ThrottleManager] knows to refresh live buckets.
+     * Revision ticks on input changes and every 15 seconds while a bulk schedule
+     * is enabled, so already-open flows cross schedule boundaries promptly.
      */
     val revision: StateFlow<Long> = MutableStateFlow(0L).also { flow ->
-        snapshot
-            .onEach { flow.value = flow.value + 1 }
-            .launchIn(scope)
+        snapshot.onEach { flow.value = flow.value + 1 }.launchIn(scope)
+        scope.launch {
+            while (true) {
+                delay(15_000)
+                if (snapshot.value.settings.bulkThrottleEnabled) {
+                    flow.value = flow.value + 1
+                }
+            }
+        }
     }
 
-    /** True when [uid]'s traffic should be routed/shaped under the current mode. */
     fun isControlled(uid: Int): Boolean {
-        if (uid == ownUid) return false // never shape ourselves
+        if (uid == ownUid) return false
         val snap = snapshot.value
         val pkgs = appInfo.packagesForUid(uid)
         if (pkgs.isEmpty()) {
-            // Unknown UID: in ALL_EXCEPT it is controlled (route by default),
-            // in ONLY_SELECTED it is not. Either way, never crash.
             return snap.settings.selectionMode == SelectionMode.ALL_EXCEPT
         }
         val anySelected = pkgs.any { it in snap.selected }
@@ -86,11 +83,10 @@ class RuleEngine(
         }
     }
 
-    /** Effective decision for [uid] at the current instant. */
+    /** Effective per-app policy, including the optional scheduled bulk cap. */
     fun policyForUid(uid: Int): EffectivePolicy {
         val snap = snapshot.value
         val pkgs = appInfo.packagesForUid(uid)
-        // Prefer the package that actually has an active rule; else any package.
         val pkg = pkgs.firstOrNull { snap.rules[it]?.isActive == true } ?: pkgs.firstOrNull()
         val appRule: AppRule? = pkg?.let { snap.rules[it] }
         val ctx = snap.device.toEvaluationContext(pkg ?: "", clock())
@@ -98,7 +94,27 @@ class RuleEngine(
             rules = appRule?.toPolicyRules().orEmpty(),
             defaultAction = snap.settings.defaultAction(),
             ctx = ctx,
+        ).copy(warnThresholdPercent = appRule?.warnThresholdPercent)
+
+        val bulk = snap.settings
+        if (policy.blocked || !bulk.bulkThrottleEnabled || pkg == null ||
+            pkg !in bulk.bulkThrottlePackages ||
+            !RuleCondition.TimeWindow(bulk.bulkStartMinute, bulk.bulkEndMinute).matches(ctx)
+        ) return policy
+
+        val bulkDown = bulk.bulkDownload.bytesPerSecondOrNull()
+        val bulkUp = bulk.bulkUpload.bytesPerSecondOrNull()
+        if (bulkDown == null && bulkUp == null) return policy
+
+        fun stricter(existing: Long?, bulkCap: Long?): Long? = when {
+            existing == null -> bulkCap
+            bulkCap == null -> existing
+            else -> minOf(existing, bulkCap)
+        }
+
+        return policy.copy(
+            downloadBytesPerSec = stricter(policy.downloadBytesPerSec, bulkDown),
+            uploadBytesPerSec = stricter(policy.uploadBytesPerSec, bulkUp),
         )
-        return policy.copy(warnThresholdPercent = appRule?.warnThresholdPercent)
     }
 }
