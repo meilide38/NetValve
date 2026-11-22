@@ -128,7 +128,13 @@ private fun StatusHero(state: DashboardUiState, actions: AppActions, onPauseResu
                     fontWeight = FontWeight.SemiBold,
                 )
                 state.status.message?.let {
-                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    Text(
+                        if (it.startsWith("Could not establish VPN: "))
+                            stringResource(R.string.log_msg_establish_failed, it.removePrefix("Could not establish VPN: "))
+                        else it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
                 if (state.running) {
                     Text(
