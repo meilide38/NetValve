@@ -96,7 +96,7 @@ jobs:
           test -n "$APK"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='dev.netvalve' versionCode='2' versionName='1.0.1'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='dev.netvalve' versionCode='3' versionName='1.0.1'"
           mkdir -p release
           cp "$APK" release/NetValve-1.0.1-netstack-arm64.apk
 
