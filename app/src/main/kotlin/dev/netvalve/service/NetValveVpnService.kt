@@ -121,7 +121,7 @@ class NetValveVpnService : VpnService(), SocketProtector {
             .addDnsServer("1.1.1.1")
             .addDnsServer("2606:4700:4700::1111")
 
-        applyAppList(builder, settings.selectionMode, selected)
+        applyAppList(\n            builder, settings.selectionMode, selected,\n            if (settings.bulkThrottleEnabled) settings.bulkThrottlePackages else emptySet(),\n        )
         builder.setBlocking(true)
         return builder.establish()
     }
@@ -131,7 +131,7 @@ class NetValveVpnService : VpnService(), SocketProtector {
      * allow/deny list is fixed at establish() — changing it needs a rebuild
      * (see [handleRestart]).
      */
-    private fun applyAppList(builder: Builder, mode: SelectionMode, selected: Set<String>) {
+    private fun applyAppList(\n        builder: Builder,\n        mode: SelectionMode,\n        selected: Set<String>,\n        bulkThrottlePackages: Set<String>,\n    ) {
         var count = 0
         when (mode) {
             SelectionMode.ONLY_SELECTED -> {
@@ -158,7 +158,7 @@ class NetValveVpnService : VpnService(), SocketProtector {
                         logger.w(LogCategory.SYSTEM, "disallowed app not found: $pkg")
                     }
                 }
-                count = selected.size // number of apps excluded from the tunnel
+                count = selected.count { it !in bulkThrottlePackages } // excluded apps; bulk targets stay routed
             }
         }
         controlledCount = count
