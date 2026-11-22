@@ -132,8 +132,9 @@ class AppSelectionViewModel @Inject constructor(
                     bulkEndMinute = endMinute,
                 )
             }
-            if (settingsRepository.current().selectionMode == SelectionMode.ALL_EXCEPT && controller.status.value.isActive) {
+            if (controller.status.value.isActive) {
                 controller.restart()
+                pendingRestart.value = false
             }
         }
     }
