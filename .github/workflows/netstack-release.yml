@@ -33,13 +33,14 @@ jobs:
         with:
           go-version: "1.25.x"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK and NDK
+      # GitHub-hosted Ubuntu runners already include Android SDK/NDK.
+      # Avoid setup-android@v3: it requests the obsolete "tools" SDK package.
+      - name: Locate Android SDK / NDK
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=${ANDROID_SDK_ROOT:-$ANDROID_HOME}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          test -d "$ANDROID_NDK_LATEST_HOME"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
 
       - name: Build real gVisor netstack AAR
         working-directory: netstack
