@@ -6,7 +6,6 @@ import dev.netvalve.data.model.InstalledApp
 import dev.netvalve.repository.AppSelectionRepository
 import dev.netvalve.repository.InstalledAppsRepository
 import dev.netvalve.service.VpnController
-import dev.netvalve.service.VpnStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -70,8 +69,35 @@ class AppSelectionViewModel @Inject constructor(
     fun toggle(packageName: String, selected: Boolean) {
         viewModelScope.launch {
             selectionRepository.setSelected(packageName, selected)
-            if (controller.status.value.isActive) pendingRestart.value = true
+            markRestartIfNeeded()
         }
+    }
+
+    /** Select every app currently visible, preserving selections hidden by the current filter. */
+    fun selectAllVisible() {
+        viewModelScope.launch {
+            val current = selectionRepository.current()
+            val visible = uiState.value.apps.map { it.app.packageName }.toSet()
+            selectionRepository.setSelected(current + visible)
+            markRestartIfNeeded()
+        }
+    }
+
+    /** Toggle selection for visible apps only; hidden selections remain unchanged. */
+    fun invertVisibleSelection() {
+        viewModelScope.launch {
+            val current = selectionRepository.current().toMutableSet()
+            uiState.value.apps.forEach { row ->
+                val packageName = row.app.packageName
+                if (!current.add(packageName)) current.remove(packageName)
+            }
+            selectionRepository.setSelected(current)
+            markRestartIfNeeded()
+        }
+    }
+
+    private fun markRestartIfNeeded() {
+        if (controller.status.value.isActive) pendingRestart.value = true
     }
 
     /** Rebuild the tunnel so the new allow/deny list takes effect. */
