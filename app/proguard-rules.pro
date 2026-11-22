@@ -22,3 +22,11 @@
 # Keep VpnService entry points referenced by the framework.
 -keep class dev.netvalve.service.NetValveVpnService { *; }
 -keep class dev.netvalve.service.BootReceiver { *; }
+
+# gomobile-generated bindings live in dev.netvalve.bridge (see netstack/build-aar.sh).
+# JNI entry points are called from Go, so R8 must not rename or strip them.
+-keep class dev.netvalve.bridge.** { *; }
+-keep class go.** { *; }
+-dontwarn go.**
+-dontwarn dev.netvalve.bridge.**
+
