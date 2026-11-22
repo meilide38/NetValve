@@ -297,4 +297,6 @@
     <string name="log_category_block">流量拦截</string>
     <string name="log_category_dns">DNS 查询</string>
     <string name="log_category_error">错误</string>
+    <string name="apps_bulk_download_limit">下载限速</string>
+    <string name="apps_bulk_upload_limit">上传限速</string>
 </resources>
