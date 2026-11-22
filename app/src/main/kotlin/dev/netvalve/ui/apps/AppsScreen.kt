@@ -27,15 +27,18 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.netvalve.R
 import dev.netvalve.ui.components.EmptyState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,25 +48,44 @@ fun AppsScreen(
     viewModel: AppSelectionViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val selectedCount = state.apps.count { it.selected }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text("Apps") })
+        TopAppBar(title = { Text(stringResource(R.string.apps_title)) })
 
         OutlinedTextField(
             value = state.query,
             onValueChange = viewModel::setQuery,
             leadingIcon = { Icon(Icons.Filled.Search, null) },
-            placeholder = { Text("Search apps") },
+            placeholder = { Text(stringResource(R.string.apps_search)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         )
 
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             FilterChip(
                 selected = state.includeSystem,
                 onClick = { viewModel.setIncludeSystem(!state.includeSystem) },
-                label = { Text("Show system apps") },
+                label = { Text(stringResource(R.string.apps_show_system)) },
             )
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(stringResource(R.string.apps_selected_count, selectedCount), style = MaterialTheme.typography.labelMedium)
+            Row {
+                TextButton(onClick = viewModel::selectAllVisible, enabled = state.apps.isNotEmpty()) {
+                    Text(stringResource(R.string.apps_select_all))
+                }
+                TextButton(onClick = viewModel::invertVisibleSelection, enabled = state.apps.isNotEmpty()) {
+                    Text(stringResource(R.string.apps_invert))
+                }
+            }
         }
 
         if (state.pendingRestart) {
@@ -72,8 +94,8 @@ fun AppsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("Selection changed — restart tunnel to apply", color = MaterialTheme.colorScheme.tertiary)
-                androidx.compose.material3.TextButton(onClick = viewModel::applyChanges) { Text("Apply") }
+                Text(stringResource(R.string.apps_selection_changed), color = MaterialTheme.colorScheme.tertiary)
+                TextButton(onClick = viewModel::applyChanges) { Text(stringResource(R.string.action_apply)) }
             }
         }
 
@@ -81,8 +103,8 @@ fun AppsScreen(
             state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
             state.apps.isEmpty() -> EmptyState(
                 icon = Icons.Filled.Search,
-                title = "No apps match",
-                subtitle = "Try a different search, or enable system apps.",
+                title = stringResource(R.string.apps_empty_title),
+                subtitle = stringResource(R.string.apps_empty_hint),
                 modifier = Modifier.fillMaxSize(),
             )
             else -> LazyColumn(Modifier.fillMaxSize()) {
@@ -119,14 +141,14 @@ private fun AppRow(
         Column(Modifier.weight(1f)) {
             Text(label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                if (isSystem) "$packageName · system" else packageName,
+                if (isSystem) "$packageName · ${stringResource(R.string.apps_system)}" else packageName,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        IconButton(onClick = onOpen) { Icon(Icons.Filled.Tune, contentDescription = "Configure") }
+        IconButton(onClick = onOpen) { Icon(Icons.Filled.Tune, contentDescription = stringResource(R.string.apps_configure)) }
         Checkbox(checked = selected, onCheckedChange = onToggle)
     }
 }
