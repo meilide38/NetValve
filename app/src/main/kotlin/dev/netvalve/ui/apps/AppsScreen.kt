@@ -15,9 +15,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,14 +34,20 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.netvalve.R
+import dev.netvalve.data.model.BandwidthUnit
 import dev.netvalve.ui.components.EmptyState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,6 +58,7 @@ fun AppsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val selectedCount = state.apps.count { it.selected }
+    var showBulkDialog by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(title = { Text(stringResource(R.string.apps_title)) })
@@ -88,6 +98,25 @@ fun AppsScreen(
             }
         }
 
+        Button(
+            onClick = { showBulkDialog = true },
+            enabled = selectedCount > 0,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        ) {
+            Text(stringResource(
+                if (state.bulkSettings.bulkThrottleEnabled) R.string.apps_bulk_throttle_edit
+                else R.string.apps_bulk_throttle,
+            ))
+        }
+        if (state.bulkSettings.bulkThrottleEnabled) {
+            Text(
+                stringResource(R.string.apps_bulk_throttle_active, state.bulkSettings.bulkThrottlePackages.size),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
         if (state.pendingRestart) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
@@ -121,6 +150,119 @@ fun AppsScreen(
             }
         }
     }
+
+    if (showBulkDialog) {
+        BulkThrottleDialog(
+            initialDownload = state.bulkSettings.bulkDownload.value.takeIf { !state.bulkSettings.bulkDownload.isUnlimited }?.toString() ?: "1",
+            initialUpload = state.bulkSettings.bulkUpload.value.takeIf { !state.bulkSettings.bulkUpload.isUnlimited }?.toString() ?: "1",
+            initialStart = state.bulkSettings.bulkStartMinute.toClockText(),
+            initialEnd = state.bulkSettings.bulkEndMinute.toClockText(),
+            canDisable = state.bulkSettings.bulkThrottleEnabled,
+            onDismiss = { showBulkDialog = false },
+            onSave = { down, up, start, end ->
+                viewModel.saveBulkThrottle(down, up, start, end)
+                showBulkDialog = false
+            },
+            onDisable = {
+                viewModel.disableBulkThrottle()
+                showBulkDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun BulkThrottleDialog(
+    initialDownload: String,
+    initialUpload: String,
+    initialStart: String,
+    initialEnd: String,
+    canDisable: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (Long?, Long?, Int, Int) -> Unit,
+    onDisable: () -> Unit,
+) {
+    var download by remember(initialDownload) { mutableStateOf(initialDownload) }
+    var upload by remember(initialUpload) { mutableStateOf(initialUpload) }
+    var start by remember(initialStart) { mutableStateOf(initialStart) }
+    var end by remember(initialEnd) { mutableStateOf(initialEnd) }
+
+    val downValue = download.toLongOrNull()?.takeIf { it > 0 }
+    val upValue = upload.toLongOrNull()?.takeIf { it > 0 }
+    val startMinute = start.toMinuteOfDay()
+    val endMinute = end.toMinuteOfDay()
+    val valid = (downValue != null || upValue != null) &&
+        startMinute != null && endMinute != null && startMinute != endMinute
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.apps_bulk_throttle_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.apps_bulk_throttle_hint))
+                OutlinedTextField(
+                    value = download,
+                    onValueChange = { download = it.filter(Char::isDigit) },
+                    label = { Text(stringResource(R.string.apps_bulk_download_mbps)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = upload,
+                    onValueChange = { upload = it.filter(Char::isDigit) },
+                    label = { Text(stringResource(R.string.apps_bulk_upload_mbps)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = start,
+                    onValueChange = { start = it.take(5) },
+                    label = { Text(stringResource(R.string.apps_bulk_start_time)) },
+                    supportingText = { Text(stringResource(R.string.apps_bulk_time_format)) },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = end,
+                    onValueChange = { end = it.take(5) },
+                    label = { Text(stringResource(R.string.apps_bulk_end_time)) },
+                    supportingText = { Text(stringResource(R.string.apps_bulk_time_format)) },
+                    singleLine = true,
+                )
+                if (!valid) {
+                    Text(
+                        stringResource(R.string.apps_bulk_invalid),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (canDisable) {
+                    TextButton(onClick = onDisable) { Text(stringResource(R.string.apps_bulk_disable)) }
+                }
+                Button(
+                    onClick = { onSave(downValue, upValue, startMinute!!, endMinute!!) },
+                    enabled = valid,
+                ) { Text(stringResource(R.string.apps_bulk_save)) }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_back)) }
+        },
+    )
+}
+
+private fun Int.toClockText(): String = "%02d:%02d".format(this / 60, this % 60)
+
+private fun String.toMinuteOfDay(): Int? {
+    val parts = split(":")
+    if (parts.size != 2) return null
+    val hour = parts[0].toIntOrNull() ?: return null
+    val minute = parts[1].toIntOrNull() ?: return null
+    if (hour !in 0..23 || minute !in 0..59) return null
+    return hour * 60 + minute
 }
 
 @Composable
