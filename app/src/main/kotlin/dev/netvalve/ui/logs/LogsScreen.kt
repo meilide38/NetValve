@@ -58,7 +58,7 @@ fun LogsScreen(
                 FilterChip(
                     selected = state.minLevel == level,
                     onClick = { viewModel.setMinLevel(level) },
-                    label = { Text(level.localizedLabel()) },
+                    label = { Text(stringResource(level.labelRes())) },
                 )
             }
         }
@@ -84,11 +84,11 @@ fun LogsScreen(
     }
 }
 
-private fun LogLevel.localizedLabel(): String = when (this) {
-    LogLevel.ERROR -> "错误"
-    LogLevel.WARNING -> "警告"
-    LogLevel.INFO -> "信息"
-    LogLevel.DEBUG -> "调试"
+private fun LogLevel.labelRes(): Int = when (this) {
+    LogLevel.ERROR -> R.string.log_level_error
+    LogLevel.WARNING -> R.string.log_level_warning
+    LogLevel.INFO -> R.string.log_level_info
+    LogLevel.DEBUG -> R.string.log_level_debug
 }
 
 @Composable
