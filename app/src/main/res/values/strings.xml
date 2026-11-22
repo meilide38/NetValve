@@ -12,12 +12,24 @@
     <string name="apps_invert">Invert</string>
     <string name="apps_selected_count">%1$d selected</string>
     <string name="apps_selection_changed">Selection changed — restart tunnel to apply</string>
+    <string name="apps_bulk_throttle">Bulk throttle selected apps</string>
+    <string name="apps_bulk_throttle_edit">Edit bulk throttle</string>
+    <string name="apps_bulk_throttle_active">Scheduled throttle active for %1$d apps</string>
+    <string name="apps_bulk_throttle_title">Bulk app throttling</string>
+    <string name="apps_bulk_throttle_hint">Set one shared speed limit and daily time window for the selected apps. Leave a direction empty to keep it unlimited.</string>
+    <string name="apps_bulk_download_mbps">Download limit (Mbps)</string>
+    <string name="apps_bulk_upload_mbps">Upload limit (Mbps)</string>
+    <string name="apps_bulk_start_time">Start time</string>
+    <string name="apps_bulk_end_time">End time</string>
+    <string name="apps_bulk_time_format">24-hour format, for example 20:00</string>
+    <string name="apps_bulk_invalid">Enter at least one positive speed and valid, different start/end times.</string>
+    <string name="apps_bulk_disable">Disable bulk rule</string>
+    <string name="apps_bulk_save">Save schedule</string>
     <string name="action_apply">Apply</string>
     <string name="apps_empty_title">No apps match</string>
     <string name="apps_empty_hint">Try a different search, or enable system apps.</string>
     <string name="apps_configure">Configure</string>
     <string name="apps_system">system</string>
-    <!-- Foreground-service notification -->
     <string name="vpn_channel_name">Tunnel status</string>
     <string name="vpn_channel_desc">Ongoing status of the local NetValve tunnel and its controls.</string>
     <string name="vpn_notification_title">NetValve tunnel active</string>
