@@ -213,7 +213,7 @@ private fun BulkThrottleDialog(
                 OutlinedTextField(
                     value = download,
                     onValueChange = { download = it.filter(Char::isDigit) },
-                    label = { Text(stringResource(R.string.apps_bulk_download_mbps)) },
+                    label = { Text(stringResource(R.string.apps_bulk_download_limit)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                 )
@@ -225,7 +225,7 @@ private fun BulkThrottleDialog(
                 OutlinedTextField(
                     value = upload,
                     onValueChange = { upload = it.filter(Char::isDigit) },
-                    label = { Text(stringResource(R.string.apps_bulk_upload_mbps)) },
+                    label = { Text(stringResource(R.string.apps_bulk_upload_limit)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                 )
