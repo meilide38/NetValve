@@ -71,6 +71,7 @@ jobs:
 
       - name: Build release APK
         run: |
+          chmod +x gradlew
           FLAG=""
           if [ "${{ github.event.inputs.engine }}" != "loopback" ]; then FLAG="-Pnetvalve.netstack=true"; fi
           ./gradlew --no-daemon -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g" \
