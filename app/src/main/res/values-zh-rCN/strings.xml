@@ -289,4 +289,12 @@
 
 
 
+    <string name="log_category_system">系统</string>
+    <string name="log_category_connection_open">连接建立</string>
+    <string name="log_category_connection_close">连接关闭</string>
+    <string name="log_category_throttle">限速</string>
+    <string name="log_category_rule_match">规则匹配</string>
+    <string name="log_category_block">流量拦截</string>
+    <string name="log_category_dns">DNS 查询</string>
+    <string name="log_category_error">错误</string>
 </resources>
