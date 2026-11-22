@@ -23,6 +23,7 @@ data class AppDetailUiState(
     val draft: RuleDraft = RuleDraft(""),
     val stat: AppStat? = null,
     val saved: Boolean = true,
+    val use24HourTime: Boolean = true,
 )
 
 @HiltViewModel
@@ -42,13 +43,14 @@ class AppDetailViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<AppDetailUiState> =
-        combine(packageName, draft, saved, statFlow) { pkg, d, isSaved, stat ->
+        combine(packageName, draft, saved, statFlow, settingsRepository.settings) { pkg, d, isSaved, stat, settings ->
             AppDetailUiState(
                 packageName = pkg,
                 label = if (pkg.isBlank()) "" else appInfo.labelForPackage(pkg),
                 draft = d,
                 stat = stat,
                 saved = isSaved,
+                use24HourTime = settings.use24HourTime,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppDetailUiState())
 
