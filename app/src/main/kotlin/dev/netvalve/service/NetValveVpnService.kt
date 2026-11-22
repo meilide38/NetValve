@@ -160,7 +160,7 @@ class NetValveVpnService : VpnService(), SocketProtector {
             SelectionMode.ALL_EXCEPT -> {
                 // Never route our own traffic (prevents loops).
                 runCatching { builder.addDisallowedApplication(packageName) }
-                for (pkg in selected) {
+                for (pkg in selected.filterNot { it in bulkThrottlePackages }) {
                     try { builder.addDisallowedApplication(pkg) }
                     catch (_: PackageManager.NameNotFoundException) {
                         logger.w(LogCategory.SYSTEM, "disallowed app not found: $pkg")
