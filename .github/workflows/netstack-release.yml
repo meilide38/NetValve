@@ -36,19 +36,21 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android NDK
-        run: sdkmanager "ndk;27.2.12479018"
+      - name: Install Android SDK and NDK
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
       - name: Build real gVisor netstack AAR
         working-directory: netstack
         env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
           GOTOOLCHAIN: auto
-        run: ./build-aar.sh arm64
+        run: |
+          chmod +x ./build-aar.sh
+          ./build-aar.sh arm64
 
       - name: Run unit tests and build installable APK
         env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
           GOTOOLCHAIN: auto
         run: |
           chmod +x ./gradlew
