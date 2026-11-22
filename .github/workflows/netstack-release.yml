@@ -103,8 +103,8 @@ jobs:
       - name: Upload APK artifact (fallback download)
         uses: actions/upload-artifact@v4
         with:
-          name: NetValve-1.0.1-netstack-arm64
-          path: release/NetValve-1.0.1-netstack-arm64.apk
+          name: NetValve-1.0.2-netstack-arm64
+          path: release/NetValve-1.0.2-netstack-arm64.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -117,5 +117,5 @@ jobs:
           prerelease: false
           make_latest: true
           generate_release_notes: true
-          files: release/NetValve-1.0.1-netstack-arm64.apk
+          files: release/NetValve-1.0.2-netstack-arm64.apk
           fail_on_unmatched_files: true
