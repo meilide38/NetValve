@@ -121,7 +121,10 @@ class NetValveVpnService : VpnService(), SocketProtector {
             .addDnsServer("1.1.1.1")
             .addDnsServer("2606:4700:4700::1111")
 
-        applyAppList(\n            builder, settings.selectionMode, selected,\n            if (settings.bulkThrottleEnabled) settings.bulkThrottlePackages else emptySet(),\n        )
+        applyAppList(
+            builder, settings.selectionMode, selected,
+            if (settings.bulkThrottleEnabled) settings.bulkThrottlePackages else emptySet(),
+        )
         builder.setBlocking(true)
         return builder.establish()
     }
@@ -131,7 +134,12 @@ class NetValveVpnService : VpnService(), SocketProtector {
      * allow/deny list is fixed at establish() — changing it needs a rebuild
      * (see [handleRestart]).
      */
-    private fun applyAppList(\n        builder: Builder,\n        mode: SelectionMode,\n        selected: Set<String>,\n        bulkThrottlePackages: Set<String>,\n    ) {
+    private fun applyAppList(
+        builder: Builder,
+        mode: SelectionMode,
+        selected: Set<String>,
+        bulkThrottlePackages: Set<String>,
+    ) {
         var count = 0
         when (mode) {
             SelectionMode.ONLY_SELECTED -> {
