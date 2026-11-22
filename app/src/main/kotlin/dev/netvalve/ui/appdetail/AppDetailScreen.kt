@@ -33,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import dev.netvalve.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.netvalve.data.model.BandwidthUnit
@@ -55,11 +57,11 @@ fun AppDetailScreen(
         TopAppBar(
             title = { Text(state.label.ifBlank { packageName }, maxLines = 1) },
             navigationIcon = {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) }
             },
             actions = {
                 IconButton(onClick = viewModel::save, enabled = !state.saved) {
-                    Icon(Icons.Filled.Save, "Save")
+                    Icon(Icons.Filled.Save, stringResource(R.string.action_save))
                 }
             },
         )
@@ -69,23 +71,23 @@ fun AppDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // Live per-app stats
-            SectionCard(title = "This app") {
+            SectionCard(title = stringResource(R.string.detail_this_app)) {
                 val s = state.stat
-                LabeledRow("Downloaded", Format.bytes(s?.downloadBytes ?: 0))
-                LabeledRow("Uploaded", Format.bytes(s?.uploadBytes ?: 0))
-                LabeledRow("Live ↓ / ↑", "${Format.rate(s?.liveDownloadBps ?: 0)}  /  ${Format.rate(s?.liveUploadBps ?: 0)}")
+                LabeledRow(stringResource(R.string.stats_downloaded), Format.bytes(s?.downloadBytes ?: 0))
+                LabeledRow(stringResource(R.string.stats_uploaded), Format.bytes(s?.uploadBytes ?: 0))
+                LabeledRow(stringResource(R.string.stats_live_down_up), "${Format.rate(s?.liveDownloadBps ?: 0)}  /  ${Format.rate(s?.liveUploadBps ?: 0)}")
             }
 
             // Access
-            SectionCard(title = "Access") {
-                SwitchRow("Block all traffic", d.blocked) { viewModel.edit { r -> r.copy(blocked = it) } }
-                SwitchRow("Rule enabled", d.enabled) { viewModel.edit { r -> r.copy(enabled = it) } }
+            SectionCard(title = stringResource(R.string.detail_access)) {
+                SwitchRow(stringResource(R.string.detail_block_all_traffic), d.blocked) { viewModel.edit { r -> r.copy(blocked = it) } }
+                SwitchRow(stringResource(R.string.detail_rule_enabled), d.enabled) { viewModel.edit { r -> r.copy(enabled = it) } }
             }
 
             // Bandwidth caps
-            SectionCard(title = "Bandwidth limits") {
+            SectionCard(title = stringResource(R.string.detail_bandwidth_limits)) {
                 CapEditor(
-                    label = "Download cap",
+                    label = stringResource(R.string.detail_download_cap),
                     enabled = d.downloadEnabled,
                     value = d.downloadValue,
                     unit = d.downloadUnit,
@@ -95,7 +97,7 @@ fun AppDetailScreen(
                 )
                 Spacer(Modifier.height(12.dp))
                 CapEditor(
-                    label = "Upload cap",
+                    label = stringResource(R.string.detail_upload_cap),
                     enabled = d.uploadEnabled,
                     value = d.uploadValue,
                     unit = d.uploadUnit,
@@ -104,38 +106,38 @@ fun AppDetailScreen(
                     onUnit = { viewModel.edit { r -> r.copy(uploadUnit = it) } },
                 )
                 Spacer(Modifier.height(8.dp))
-                SwitchRow("Throttle in background only", d.backgroundOnly) {
+                SwitchRow(stringResource(R.string.detail_background_only), d.backgroundOnly) {
                     viewModel.edit { r -> r.copy(backgroundOnly = it) }
                 }
             }
 
             // Conditions
-            SectionCard(title = "Conditions (optional)") {
+            SectionCard(title = stringResource(R.string.detail_conditions_optional)) {
                 Text(
-                    "The rule applies only when ALL selected conditions hold.",
+                    stringResource(R.string.detail_conditions_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(d.wifi, { viewModel.edit { r -> r.copy(wifi = !r.wifi) } }, label = { Text("Wi‑Fi") })
-                    FilterChip(d.mobile, { viewModel.edit { r -> r.copy(mobile = !r.mobile) } }, label = { Text("Mobile") })
-                    FilterChip(d.roamingOnly, { viewModel.edit { r -> r.copy(roamingOnly = !r.roamingOnly) } }, label = { Text("Roaming") })
-                    FilterChip(d.chargingOnly, { viewModel.edit { r -> r.copy(chargingOnly = !r.chargingOnly) } }, label = { Text("Charging") })
+                    FilterChip(d.wifi, { viewModel.edit { r -> r.copy(wifi = !r.wifi) } }, label = { Text(stringResource(R.string.network_wifi)) })
+                    FilterChip(d.mobile, { viewModel.edit { r -> r.copy(mobile = !r.mobile) } }, label = { Text(stringResource(R.string.network_mobile)) })
+                    FilterChip(d.roamingOnly, { viewModel.edit { r -> r.copy(roamingOnly = !r.roamingOnly) } }, label = { Text(stringResource(R.string.network_roaming)) })
+                    FilterChip(d.chargingOnly, { viewModel.edit { r -> r.copy(chargingOnly = !r.chargingOnly) } }, label = { Text(stringResource(R.string.network_charging)) })
                 }
                 Spacer(Modifier.height(8.dp))
-                SwitchRow("Only when battery below ${d.batteryBelow}%", d.batteryBelowEnabled) {
+                SwitchRow(stringResource(R.string.detail_battery_below, d.batteryBelow), d.batteryBelowEnabled) {
                     viewModel.edit { r -> r.copy(batteryBelowEnabled = it) }
                 }
             }
 
             // Schedule
-            SectionCard(title = "Schedule (optional)") {
-                SwitchRow("Enable schedule", d.scheduleEnabled) { viewModel.edit { r -> r.copy(scheduleEnabled = it) } }
+            SectionCard(title = stringResource(R.string.detail_schedule_optional)) {
+                SwitchRow(stringResource(R.string.detail_enable_schedule), d.scheduleEnabled) { viewModel.edit { r -> r.copy(scheduleEnabled = it) } }
                 if (d.scheduleEnabled) {
                     Spacer(Modifier.height(8.dp))
-                    HourStepper("Start", d.startHour) { viewModel.edit { r -> r.copy(startHour = it) } }
-                    HourStepper("End", d.endHour) { viewModel.edit { r -> r.copy(endHour = it) } }
+                    HourStepper(stringResource(R.string.detail_start), d.startHour) { viewModel.edit { r -> r.copy(startHour = it) } }
+                    HourStepper(stringResource(R.string.detail_end), d.endHour) { viewModel.edit { r -> r.copy(endHour = it) } }
                     Spacer(Modifier.height(8.dp))
                     DayPicker(d.days) { day ->
                         viewModel.edit { r -> r.copy(days = r.days.toMutableSet().apply { if (!add(day)) remove(day) }) }
@@ -144,15 +146,15 @@ fun AppDetailScreen(
             }
 
             // Warning threshold
-            SectionCard(title = "Usage warning") {
-                SwitchRow("Warn at ${d.warnPercent}% of cap", d.warnEnabled) {
+            SectionCard(title = stringResource(R.string.detail_usage_warning)) {
+                SwitchRow(stringResource(R.string.detail_warn_at_percent, d.warnPercent), d.warnEnabled) {
                     viewModel.edit { r -> r.copy(warnEnabled = it) }
                 }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = viewModel::save, enabled = !state.saved) { Text("Save rule") }
-                OutlinedButton(onClick = viewModel::deleteRule) { Text("Clear rule") }
+                Button(onClick = viewModel::save, enabled = !state.saved) { Text(stringResource(R.string.detail_save_rule)) }
+                OutlinedButton(onClick = viewModel::deleteRule) { Text(stringResource(R.string.detail_clear_rule)) }
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -219,7 +221,7 @@ private fun HourStepper(label: String, hour: Int, onChange: (Int) -> Unit) {
 
 @Composable
 private fun DayPicker(days: Set<Int>, onToggle: (Int) -> Unit) {
-    val names = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    val names = listOf(R.string.day_mon, R.string.day_tue, R.string.day_wed, R.string.day_thu, R.string.day_fri, R.string.day_sat, R.string.day_sun).map { stringResource(it) }
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         names.forEachIndexed { index, name ->
             val day = index + 1
