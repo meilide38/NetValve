@@ -41,6 +41,8 @@ import dev.netvalve.data.model.BandwidthUnit
 import dev.netvalve.ui.components.LabeledRow
 import dev.netvalve.ui.components.SectionCard
 import dev.netvalve.utils.Format
+import java.text.DateFormatSymbols
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -215,7 +217,10 @@ private fun HourStepper(label: String, hour: Int, use24HourTime: Boolean, onChan
         Spacer(Modifier.width(8.dp))
         Text(
             if (use24HourTime) "%02d:00".format(hour)
-            else "%d:00 %s".format(if (hour % 12 == 0) 12 else hour % 12, if (hour < 12) "AM" else "PM"),
+            else "%d:00 %s".format(
+                if (hour % 12 == 0) 12 else hour % 12,
+                DateFormatSymbols(Locale.getDefault()).amPmStrings[if (hour < 12) 0 else 1],
+            ),
             style = MaterialTheme.typography.titleMedium,
         )
         Spacer(Modifier.width(8.dp))
