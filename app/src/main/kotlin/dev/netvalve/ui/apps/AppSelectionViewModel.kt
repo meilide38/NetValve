@@ -112,8 +112,10 @@ class AppSelectionViewModel @Inject constructor(
 
     /** Apply one shared cap and daily local-time window to the currently selected package set. */
     fun saveBulkThrottle(
-        downloadMbps: Long?,
-        uploadMbps: Long?,
+        downloadValue: Long?,
+        downloadUnit: BandwidthUnit,
+        uploadValue: Long?,
+        uploadUnit: BandwidthUnit,
         startMinute: Int,
         endMinute: Int,
     ) {
@@ -124,9 +126,9 @@ class AppSelectionViewModel @Inject constructor(
                 current.copy(
                     bulkThrottlePackages = packages,
                     bulkThrottleEnabled = true,
-                    bulkDownload = downloadMbps?.let { BandwidthLimit(it, BandwidthUnit.MBPS, true) }
+                    bulkDownload = downloadValue?.let { BandwidthLimit(it, downloadUnit, true) }
                         ?: BandwidthLimit.Unlimited,
-                    bulkUpload = uploadMbps?.let { BandwidthLimit(it, BandwidthUnit.MBPS, true) }
+                    bulkUpload = uploadValue?.let { BandwidthLimit(it, uploadUnit, true) }
                         ?: BandwidthLimit.Unlimited,
                     bulkStartMinute = startMinute,
                     bulkEndMinute = endMinute,
