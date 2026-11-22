@@ -216,7 +216,7 @@ private fun BulkThrottleDialog(
                     singleLine = true,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(BandwidthUnit.KB_S, BandwidthUnit.MB_S).forEach { unit ->
+                    BandwidthUnit.entries.forEach { unit ->
                         FilterChip(selected = downloadUnit == unit, onClick = { downloadUnit = unit }, label = { Text(unit.label) })
                     }
                 }
@@ -228,7 +228,7 @@ private fun BulkThrottleDialog(
                     singleLine = true,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(BandwidthUnit.KB_S, BandwidthUnit.MB_S).forEach { unit ->
+                    BandwidthUnit.entries.forEach { unit ->
                         FilterChip(selected = uploadUnit == unit, onClick = { uploadUnit = unit }, label = { Text(unit.label) })
                     }
                 }
@@ -243,7 +243,7 @@ private fun BulkThrottleDialog(
                     value = end,
                     onValueChange = { end = it.take(8) },
                     label = { Text(stringResource(R.string.apps_bulk_end_time)) },
-                    supportingText = { Text(stringResource(R.string.apps_bulk_time_format)) },
+                    supportingText = { Text(stringResource(if (use24HourTime) R.string.apps_bulk_time_format else R.string.apps_bulk_time_format_12)) },
                     singleLine = true,
                 )
                 if (!valid) {
