@@ -56,9 +56,9 @@ class ThrottleManager(
     fun bucketFor(uid: Int, direction: Direction): TokenBucket? {
         val k = key(uid, direction)
         val cap = capFor(ruleEngine.policyForUid(uid), direction) ?: run {
-            // Existing flows may still hold this bucket reference. Switch it to
-            // unlimited before removing it so a rule removal takes effect live.
-            buckets.remove(k)?.updateRate(0)
+            // Keep the shared bucket in the map: existing flows retain this
+            // reference and must see later re-enabling/rate changes as well.
+            buckets[k]?.updateRate(0)
             return null
         }
         val created = !buckets.containsKey(k)
@@ -113,9 +113,9 @@ class ThrottleManager(
             val direction = if (k and 1L == 1L) Direction.DOWNLOAD else Direction.UPLOAD
             val cap = capFor(ruleEngine.policyForUid(uid), direction)
             if (cap == null) {
-                // Do not strand active flows on a detached, still-limited bucket.
+                // Keep the bucket reachable so active flows observe a later
+                // re-enable without having to reconnect.
                 bucket.updateRate(0)
-                buckets.remove(k, bucket)
             } else {
                 bucket.updateRate(cap, burstFor(cap))
             }
