@@ -3,6 +3,7 @@ package dev.netvalve.network
 import dev.netvalve.log.LogCategory
 import dev.netvalve.log.Logger
 import dev.netvalve.stats.StatsCollector
+import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetSocketAddress
@@ -25,25 +26,37 @@ class ConnectionManager(
 ) {
     fun connectTcp(ctx: FlowContext, protector: SocketProtector): TcpUpstream {
         val socket = Socket()
-        // Protect BEFORE connect so the SYN is not routed back into the tunnel.
-        if (!protector.protect(socket)) {
-            logger.w(LogCategory.ERROR, "protect() failed for ${ctx.shortKey()}")
+        try {
+            // Protect BEFORE connect so the SYN is not routed back into the tunnel.
+            if (!protector.protect(socket)) {
+                logger.e(LogCategory.ERROR, "protect() failed for ${ctx.shortKey()}; refusing unprotected socket")
+                throw IOException("VPN socket protection failed for ${ctx.shortKey()}")
+            }
+            val started = System.nanoTime()
+            socket.tcpNoDelay = true
+            socket.connect(InetSocketAddress(ctx.destinationAddress, ctx.destinationPort), connectTimeoutMillis)
+            val latencyMs = (System.nanoTime() - started) / 1_000_000
+            stats.recordConnectLatency(latencyMs)
+            return TcpUpstream(socket)
+        } catch (t: Throwable) {
+            runCatching { socket.close() }
+            throw t
         }
-        val started = System.nanoTime()
-        socket.tcpNoDelay = true
-        socket.connect(InetSocketAddress(ctx.destinationAddress, ctx.destinationPort), connectTimeoutMillis)
-        val latencyMs = (System.nanoTime() - started) / 1_000_000
-        stats.recordConnectLatency(latencyMs)
-        return TcpUpstream(socket)
     }
 
     fun openUdp(ctx: FlowContext, protector: SocketProtector): UdpUpstream {
         val socket = DatagramSocket()
-        if (!protector.protect(socket)) {
-            logger.w(LogCategory.ERROR, "protect() failed for ${ctx.shortKey()}")
+        try {
+            if (!protector.protect(socket)) {
+                logger.e(LogCategory.ERROR, "protect() failed for ${ctx.shortKey()}; refusing unprotected socket")
+                throw IOException("VPN socket protection failed for ${ctx.shortKey()}")
+            }
+            socket.connect(InetSocketAddress(ctx.destinationAddress, ctx.destinationPort))
+            return UdpUpstream(socket)
+        } catch (t: Throwable) {
+            runCatching { socket.close() }
+            throw t
         }
-        socket.connect(InetSocketAddress(ctx.destinationAddress, ctx.destinationPort))
-        return UdpUpstream(socket)
     }
 }
 

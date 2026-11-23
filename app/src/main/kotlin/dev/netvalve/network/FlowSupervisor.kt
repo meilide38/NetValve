@@ -54,7 +54,8 @@ class FlowSupervisor(
 
     private suspend fun relayTcp(ctx: FlowContext, appSide: FlowStream) {
         val uid = uidResolver.resolve(ctx)
-        val verdict = if (paused() || !ruleEngine.isControlled(uid)) {
+        val bypassThrottling = paused() || !ruleEngine.isControlled(uid)
+        val verdict = if (bypassThrottling) {
             // Paused or not-controlled: relay unshaped so connectivity is preserved.
             FlowVerdict(blocked = false, downloadBytesPerSec = null, uploadBytesPerSec = null, warnThresholdPercent = null, tags = emptyMap())
         } else {
@@ -66,6 +67,7 @@ class FlowSupervisor(
         if (verdict.blocked) {
             logger.i(LogCategory.BLOCK, "reset ${ctx.shortKey()}", uid = uid)
             appSide.close() // netstack turns this into a TCP RST
+            stats.onFlowClosed(uid)
             moduleChain.onFlowClose(ctx, uid)
             return
         }
@@ -80,8 +82,8 @@ class FlowSupervisor(
             return
         }
 
-        val upBucket = throttleManager.bucketFor(uid, Direction.UPLOAD)
-        val downBucket = throttleManager.bucketFor(uid, Direction.DOWNLOAD)
+        val upBucket = if (bypassThrottling) null else throttleManager.bucketFor(uid, Direction.UPLOAD)
+        val downBucket = if (bypassThrottling) null else throttleManager.bucketFor(uid, Direction.DOWNLOAD)
 
         try {
             coroutineScope {
@@ -128,7 +130,8 @@ class FlowSupervisor(
 
     private suspend fun relayUdp(ctx: FlowContext, appSide: DatagramStream) {
         val uid = uidResolver.resolve(ctx)
-        val verdict = if (paused() || !ruleEngine.isControlled(uid)) {
+        val bypassThrottling = paused() || !ruleEngine.isControlled(uid)
+        val verdict = if (bypassThrottling) {
             FlowVerdict(blocked = false, downloadBytesPerSec = null, uploadBytesPerSec = null, warnThresholdPercent = null, tags = emptyMap())
         } else {
             moduleChain.evaluate(FlowOpenInput(ctx, uid))
@@ -140,6 +143,7 @@ class FlowSupervisor(
         if (verdict.blocked) {
             logger.i(LogCategory.BLOCK, "drop udp ${ctx.shortKey()}", uid = uid)
             appSide.close()
+            stats.onFlowClosed(uid)
             moduleChain.onFlowClose(ctx, uid)
             return
         }
@@ -148,50 +152,70 @@ class FlowSupervisor(
             connectionManager.openUdp(ctx, config.protector).also { it.setTimeout(UDP_IDLE_TIMEOUT_MILLIS) }
         } catch (t: Throwable) {
             logger.w(LogCategory.ERROR, "udp open failed ${ctx.shortKey()}: ${t.message}", uid = uid)
-            appSide.close(); moduleChain.onFlowClose(ctx, uid); return
+            appSide.close(); stats.onFlowClosed(uid); moduleChain.onFlowClose(ctx, uid); return
         }
 
         // Paced, NOT dropped: a bounded queue smooths bursts; tail-drop is the
         // documented last resort only when the app sustainably outruns its cap.
-        val upBucket = if (dnsExempt) null else throttleManager.bucketFor(uid, Direction.UPLOAD)
-        val downBucket = if (dnsExempt) null else throttleManager.bucketFor(uid, Direction.DOWNLOAD)
+        val upBucket = if (dnsExempt || bypassThrottling) null else throttleManager.bucketFor(uid, Direction.UPLOAD)
+        val downBucket = if (dnsExempt || bypassThrottling) null else throttleManager.bucketFor(uid, Direction.DOWNLOAD)
         val egressQueue = PacingQueue<ByteArray>(UDP_QUEUE_BYTES, PacingQueue.DropPolicy.DROP_OLDEST)
+
+        val closeFlow = {
+            egressQueue.close()
+            runCatching { upstream.close() }
+            runCatching { appSide.close() }
+        }
 
         try {
             coroutineScope {
-                // reader: app -> queue
+                // reader: app -> queue (or direct send when unshaped)
                 launch {
-                    while (isActive) {
-                        val dg = appSide.receive() ?: break
-                        if (ctx.isDns) { stats.onDnsQuery() }
-                        if (upBucket == null) {
-                            upstream.send(dg)
-                            stats.recordUpload(uid, dg.size.toLong())
-                        } else if (!egressQueue.offer(dg, dg.size.toLong())) {
-                            logger.d(LogCategory.THROTTLE, "udp tail-drop ${ctx.shortKey()}", uid = uid)
+                    try {
+                        while (isActive) {
+                            val dg = appSide.receive() ?: break
+                            if (ctx.isDns) { stats.onDnsQuery() }
+                            if (upBucket == null || upBucket.configuredRate <= 0L) {
+                                // Keep unlimited UDP on the direct path; the shared
+                                // zero-rate bucket still observes future schedule changes.
+                                upstream.send(dg)
+                                stats.recordUpload(uid, dg.size.toLong())
+                                moduleChain.onBytes(ctx, uid, Direction.UPLOAD, dg.size)
+                            } else if (!egressQueue.offer(dg, dg.size.toLong())) {
+                                logger.d(LogCategory.THROTTLE, "udp tail-drop ${ctx.shortKey()}", uid = uid)
+                            }
                         }
+                    } finally {
+                        closeFlow()
                     }
                 }
-                // pacer: queue -> upstream (UPLOAD)
+                // pacer: queue -> upstream (UPLOAD). pollAwait suspends while empty.
                 if (upBucket != null) launch {
-                    while (isActive) {
-                        val dg = egressQueue.poll()
-                        if (dg == null) { kotlinx.coroutines.delay(5); continue }
-                        throttleManager.pace(upBucket, dg.size.toLong())
-                        upstream.send(dg)
-                        stats.recordUpload(uid, dg.size.toLong())
-                        moduleChain.onBytes(ctx, uid, Direction.UPLOAD, dg.size)
+                    try {
+                        while (isActive) {
+                            val dg = egressQueue.pollAwait()
+                            throttleManager.pace(upBucket, dg.size.toLong())
+                            upstream.send(dg)
+                            stats.recordUpload(uid, dg.size.toLong())
+                            moduleChain.onBytes(ctx, uid, Direction.UPLOAD, dg.size)
+                        }
+                    } finally {
+                        closeFlow()
                     }
                 }
                 // upstream -> app (DOWNLOAD)
                 launch {
-                    while (isActive) {
-                        val data = upstream.receive() ?: break
-                        throttleManager.pace(downBucket, data.size.toLong())
-                        appSide.send(data)
-                        stats.recordDownload(uid, data.size.toLong())
-                        moduleChain.onBytes(ctx, uid, Direction.DOWNLOAD, data.size)
-                        coroutineContext.ensureActive()
+                    try {
+                        while (isActive) {
+                            val data = upstream.receive() ?: break
+                            throttleManager.pace(downBucket, data.size.toLong())
+                            appSide.send(data)
+                            stats.recordDownload(uid, data.size.toLong())
+                            moduleChain.onBytes(ctx, uid, Direction.DOWNLOAD, data.size)
+                            coroutineContext.ensureActive()
+                        }
+                    } finally {
+                        closeFlow()
                     }
                 }
             }

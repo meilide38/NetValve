@@ -1,5 +1,6 @@
 package dev.netvalve.service
 
+import android.os.ParcelFileDescriptor
 import dev.netvalve.data.model.Ipv6Mode
 import dev.netvalve.log.LogCategory
 import dev.netvalve.log.Logger
@@ -77,79 +78,96 @@ class TrafficEngine @Inject constructor(
     ) {
         if (isRunning) return
         paused.set(false)
-        deviceStateMonitor.start()
-        stats.startSession()
+        var monitorStarted = false
+        var fdHandedToPipeline = false
+        var createdPipeline: PacketPipeline? = null
+        try {
+            deviceStateMonitor.start()
+            monitorStarted = true
+            stats.startSession()
 
-        // Relay dispatcher: each flow runs two coroutines that BLOCK on socket /
-        // netstack reads. Plain Dispatchers.IO caps at 64 threads, so a single
-        // busy page (dozens of concurrent connections) would exhaust the pool —
-        // pace() delays could not resume and reads never released, making the
-        // tunnel "work for a few seconds then stop". A larger dedicated
-        // parallelism gives blocking relays their own headroom without starving
-        // the shared IO pool used by Room/DataStore/stats. (True 300+ scale with
-        // low RAM ultimately wants NIO upstreams — see docs/LIMITATIONS.md.)
-        val relayDispatcher = Dispatchers.IO.limitedParallelism(RELAY_PARALLELISM)
-        val scope = CoroutineScope(SupervisorJob() + relayDispatcher)
-        sessionScope = scope
+            // Relay dispatcher: each flow runs two coroutines that BLOCK on socket /
+            // netstack reads. Plain Dispatchers.IO caps at 64 threads, so a single
+            // busy page (dozens of concurrent connections) would exhaust the pool.
+            val relayDispatcher = Dispatchers.IO.limitedParallelism(RELAY_PARALLELISM)
+            val scope = CoroutineScope(SupervisorJob() + relayDispatcher)
+            sessionScope = scope
 
-        val config = TunnelConfig(
-            mtu = mtu,
-            dnsServers = dnsServers,
-            ipv6Mode = ipv6Mode,
-            exemptDns = exemptDns,
-            protector = protector,
-        )
-        val supervisor = FlowSupervisor(
-            scope = scope,
-            config = config,
-            uidResolver = uidResolver,
-            ruleEngine = ruleEngine,
-            moduleChain = moduleChain,
-            throttleManager = throttleManager,
-            connectionManager = connectionManager,
-            stats = stats,
-            logger = logger,
-            dnsCache = dnsCache,
-            paused = { paused.get() },
-        )
-
-        val p = pipelineFactory.create()
-        // Engine visibility (debug item 1): make it unmistakable which packet
-        // engine is running. The loopback engine does NOT forward upstream, so a
-        // controlled app will appear to "stall" — that is expected for that build.
-        val engineName = p.javaClass.simpleName
-        if (dev.netvalve.BuildConfig.USE_NETSTACK) {
-            logger.i(LogCategory.SYSTEM, "Packet engine: $engineName (netstack, real forwarding)")
-        } else {
-            logger.w(
-                LogCategory.SYSTEM,
-                "Packet engine: $engineName (LOOPBACK — does NOT forward upstream; controlled apps will " +
-                    "have no connectivity). Build with -Pnetvalve.netstack=true for real traffic.",
+            val config = TunnelConfig(
+                mtu = mtu,
+                dnsServers = dnsServers,
+                ipv6Mode = ipv6Mode,
+                exemptDns = exemptDns,
+                protector = protector,
             )
-        }
-        p.start(tunFd, config, supervisor)
-        pipeline = p
-        isRunning = true
-        logger.i(LogCategory.SYSTEM, "Tunnel engine started (ipv6=$ipv6Mode, exemptDns=$exemptDns)")
+            val supervisor = FlowSupervisor(
+                scope = scope,
+                config = config,
+                uidResolver = uidResolver,
+                ruleEngine = ruleEngine,
+                moduleChain = moduleChain,
+                throttleManager = throttleManager,
+                connectionManager = connectionManager,
+                stats = stats,
+                logger = logger,
+                dnsCache = dnsCache,
+                paused = { paused.get() },
+            )
 
-        // Sample + publish stats (also feeds the notification) at a low cadence.
-        scope.launch {
-            while (isActive) {
-                delay(SAMPLE_INTERVAL_MILLIS)
-                stats.sample()
+            val p = pipelineFactory.create()
+            createdPipeline = p
+            // Engine visibility: loopback is a development stub and does not
+            // forward traffic. Production releases must use the netstack build.
+            val engineName = p.javaClass.simpleName
+            if (dev.netvalve.BuildConfig.USE_NETSTACK) {
+                logger.i(LogCategory.SYSTEM, "Packet engine: $engineName (netstack, real forwarding)")
+            } else {
+                logger.w(
+                    LogCategory.SYSTEM,
+                    "Packet engine: $engineName (LOOPBACK — does NOT forward upstream; controlled apps will " +
+                        "have no connectivity). Build with -Pnetvalve.netstack=true for real traffic.",
+                )
             }
-        }
-        // Checkpoint cumulative per-app totals so they survive process death.
-        scope.launch {
-            while (isActive) {
-                delay(CHECKPOINT_INTERVAL_MILLIS)
-                runCatching { statsRepository.upsert(stats.checkpoint()) }
+            // From this point the pipeline owns the descriptor, including any
+            // partial-start cleanup performed by its stop() implementation.
+            fdHandedToPipeline = true
+            p.start(tunFd, config, supervisor)
+            pipeline = p
+            isRunning = true
+            logger.i(LogCategory.SYSTEM, "Tunnel engine started (ipv6=$ipv6Mode, exemptDns=$exemptDns)")
+
+            // Sample + publish stats (also feeds the notification) at a low cadence.
+            scope.launch {
+                while (isActive) {
+                    delay(SAMPLE_INTERVAL_MILLIS)
+                    stats.sample()
+                }
             }
+            // Checkpoint cumulative per-app totals so they survive process death.
+            scope.launch {
+                while (isActive) {
+                    delay(CHECKPOINT_INTERVAL_MILLIS)
+                    runCatching { statsRepository.upsert(stats.checkpoint()) }
+                }
+            }
+        } catch (t: Throwable) {
+            // start() is transactional: do not strand a partially-created packet
+            // engine, relay scope, or device-state observer when initialization fails.
+            runCatching { createdPipeline?.stop() }
+            if (!fdHandedToPipeline) {
+                runCatching { ParcelFileDescriptor.adoptFd(tunFd).close() }
+            }
+            pipeline = null
+            isRunning = false
+            sessionScope?.cancel()
+            sessionScope = null
+            if (monitorStarted) runCatching { deviceStateMonitor.stop() }
+            throw t
         }
     }
 
     suspend fun stop() {
-        if (!isRunning) return
+        if (!isRunning && pipeline == null && sessionScope == null) return
         isRunning = false
         runCatching { pipeline?.stop() }
         pipeline = null

@@ -1,5 +1,7 @@
 package dev.netvalve.throttle
 
+import kotlinx.coroutines.channels.Channel
+
 /**
  * A bounded, byte-accounted FIFO used to *smooth* (pace) UDP datagrams rather
  * than drop them. Datagrams arriving from netstack are enqueued here; a drain
@@ -12,7 +14,8 @@ package dev.netvalve.throttle
  * in stats/logs. This protects latency-sensitive apps (VoIP/gaming) under normal
  * conditions while bounding memory under abuse.
  *
- * Not internally coupled to coroutines, so it is unit-testable in isolation.
+ * The queue is byte-bounded and exposes both non-blocking poll and a suspending
+ * wake-up for the single drain coroutine; it does not spin while empty.
  */
 class PacingQueue<T>(
     val capacityBytes: Long,
@@ -23,6 +26,7 @@ class PacingQueue<T>(
     private data class Node<T>(val item: T, val size: Long)
 
     private val deque = ArrayDeque<Node<T>>()
+    private val availableSignal = Channel<Unit>(Channel.CONFLATED)
     private var bytesQueued = 0L
 
     var droppedCount = 0L
@@ -37,30 +41,34 @@ class PacingQueue<T>(
      * Enqueue [item] of [size] bytes.
      * @return true if accepted, false if it (or a displaced item) had to be dropped.
      */
-    fun offer(item: T, size: Long): Boolean = synchronized(this) {
-        if (size > capacityBytes) {
-            // A single datagram larger than the whole budget can never be paced.
-            droppedCount++; droppedBytes += size
-            return false
-        }
-        when (dropPolicy) {
-            DropPolicy.DROP_NEWEST -> {
-                if (bytesQueued + size > capacityBytes) {
-                    droppedCount++; droppedBytes += size
-                    return false
+    fun offer(item: T, size: Long): Boolean {
+        val accepted = synchronized(this) {
+            if (size > capacityBytes) {
+                // A single datagram larger than the whole budget can never be paced.
+                droppedCount++; droppedBytes += size
+                return false
+            }
+            when (dropPolicy) {
+                DropPolicy.DROP_NEWEST -> {
+                    if (bytesQueued + size > capacityBytes) {
+                        droppedCount++; droppedBytes += size
+                        return false
+                    }
+                }
+                DropPolicy.DROP_OLDEST -> {
+                    while (bytesQueued + size > capacityBytes && deque.isNotEmpty()) {
+                        val old = deque.removeFirst()
+                        bytesQueued -= old.size
+                        droppedCount++; droppedBytes += old.size
+                    }
                 }
             }
-            DropPolicy.DROP_OLDEST -> {
-                while (bytesQueued + size > capacityBytes && deque.isNotEmpty()) {
-                    val old = deque.removeFirst()
-                    bytesQueued -= old.size
-                    droppedCount++; droppedBytes += old.size
-                }
-            }
+            deque.addLast(Node(item, size))
+            bytesQueued += size
+            true
         }
-        deque.addLast(Node(item, size))
-        bytesQueued += size
-        return true
+        if (accepted) availableSignal.trySend(Unit)
+        return accepted
     }
 
     fun poll(): T? = synchronized(this) {
@@ -69,7 +77,21 @@ class PacingQueue<T>(
         node.item
     }
 
+    /** Wait for the next queued item without periodic polling or busy-waiting. */
+    suspend fun pollAwait(): T {
+        while (true) {
+            val item = poll()
+            if (item != null) return item
+            availableSignal.receive()
+        }
+    }
+
     fun clear() = synchronized(this) {
         deque.clear(); bytesQueued = 0
+    }
+
+    /** Wake and terminate a waiting drain coroutine when the owning flow ends. */
+    fun close() {
+        availableSignal.close()
     }
 }

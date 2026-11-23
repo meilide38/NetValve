@@ -104,6 +104,12 @@ func NewTunnel(tunFd int, mtu int, ipv6Mode string, handler Handler) (*Tunnel, e
 	if handler == nil {
 		return nil, errors.New("nil handler")
 	}
+	if mtu < 576 || mtu > 65535 {
+		return nil, fmt.Errorf("invalid MTU: %d", mtu)
+	}
+	if ipv6Mode != ipv6Relay && ipv6Mode != ipv6FastReject {
+		return nil, fmt.Errorf("invalid IPv6 mode: %q", ipv6Mode)
+	}
 
 	linkEP, err := fdbased.New(&fdbased.Options{
 		FDs: []int{tunFd},
@@ -120,17 +126,20 @@ func NewTunnel(tunFd int, mtu int, ipv6Mode string, handler Handler) (*Tunnel, e
 	})
 
 	if tErr := s.CreateNIC(nicID, linkEP); tErr != nil {
+		s.Close()
 		return nil, fmt.Errorf("CreateNIC: %v", tErr)
 	}
 	// The TUN carries traffic for arbitrary destinations, so the NIC must accept
 	// packets not addressed to a configured local address, and originate replies
 	// with spoofed source addresses.
 	if tErr := s.SetPromiscuousMode(nicID, true); tErr != nil {
+		s.Close()
 		return nil, fmt.Errorf("SetPromiscuousMode: %v", tErr)
 	}
 	if tErr := s.SetSpoofing(nicID, true); tErr != nil {
+		s.Close()
 		return nil, fmt.Errorf("SetSpoofing: %v", tErr)
-	}
+}
 	// Default routes for both families so every dst is routed to our NIC.
 	s.SetRouteTable([]tcpip.Route{
 		{Destination: header.IPv4EmptySubnet, NIC: nicID},
@@ -186,10 +195,14 @@ func (t *Tunnel) rejectV6(dst tcpip.Address) bool {
 // net.Conn-like TCPConn, and hand it to Kotlin.
 func (t *Tunnel) installTCPForwarder() {
 	fwd := tcp.NewForwarder(t.stack, 0 /*rcvWnd: default*/, 2048 /*maxInFlight*/, func(r *tcp.ForwarderRequest) {
-		// A panic here (e.g. a bad flow, a gomobile callback error) would otherwise
-		// crash the entire Go runtime and kill the tunnel. Recover + log instead.
+		// If the gomobile callback panics after endpoint creation, close the
+		// endpoint as well as recovering so the flow count and resources unwind.
+		var handedConn *tcpConn
 		defer func() {
 			if rec := recover(); rec != nil {
+				if handedConn != nil {
+					_ = handedConn.Close()
+				}
 				t.logf(logError, "recovered panic in TCP forwarder: %v", rec)
 			}
 		}()
@@ -210,10 +223,11 @@ func (t *Tunnel) installTCPForwarder() {
 		r.Complete(false)
 		atomic.AddInt64(&t.tcpFlows, 1)
 		conn := gonet.NewTCPConn(&wq, ep)
+		handedConn = &tcpConn{Conn: conn, onClose: func() { atomic.AddInt64(&t.tcpFlows, -1) }}
 		t.handler.HandleTCP(
 			id.RemoteAddress.String(), int(id.RemotePort),
 			id.LocalAddress.String(), int(id.LocalPort),
-			&tcpConn{Conn: conn},
+			handedConn,
 		)
 	})
 	t.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, fwd.HandlePacket)
@@ -225,8 +239,12 @@ func (t *Tunnel) installUDPForwarder() {
 	// udp.ForwarderHandler returns (handled bool): true if we took the flow,
 	// false to let the stack reject it (e.g. emit ICMP unreachable).
 	fwd := udp.NewForwarder(t.stack, func(r *udp.ForwarderRequest) (handled bool) {
+		var handedConn *udpConn
 		defer func() {
 			if rec := recover(); rec != nil {
+				if handedConn != nil {
+					_ = handedConn.Close()
+				}
 				t.logf(logError, "recovered panic in UDP forwarder: %v", rec)
 				handled = false
 			}
@@ -243,10 +261,11 @@ func (t *Tunnel) installUDPForwarder() {
 		}
 		atomic.AddInt64(&t.udpFlows, 1)
 		conn := gonet.NewUDPConn(&wq, ep)
+		handedConn = &udpConn{conn: conn, onClose: func() { atomic.AddInt64(&t.udpFlows, -1) }}
 		t.handler.HandleUDP(
 			id.RemoteAddress.String(), int(id.RemotePort),
 			id.LocalAddress.String(), int(id.LocalPort),
-			&udpConn{conn: conn},
+			handedConn,
 		)
 		return true
 	})

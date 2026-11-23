@@ -82,6 +82,63 @@ class TokenBucketTest {
     }
 
     @Test
+    fun changingRateToUnlimitedReleasesExistingBucketImmediately() {
+        val clock = FakeClock()
+        val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 100, clock = clock::get)
+        bucket.reserveNanos(1000) // consume the burst
+        assertTrue(bucket.reserveNanos(1000) > 0)
+
+        bucket.updateRate(0)
+        assertEquals(0L, bucket.reserveNanos(1_000_000))
+    }
+
+    @Test
+    fun existingUnlimitedBucketCanBeThrottledByLaterSchedule() {
+        val clock = FakeClock()
+        val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 0, clock = clock::get)
+        assertEquals(0L, bucket.reserveNanos(1000))
+
+        bucket.updateRate(1000, 1000)
+        assertEquals(0L, bucket.reserveNanos(1000))
+        assertEquals(1_000_000_000L, bucket.reserveNanos(1000))
+    }
+
+    @Test
+    fun unlimitedAndReenabledRuleClearsOldDebtForExistingFlows() {
+        val clock = FakeClock()
+        val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 100, clock = clock::get)
+        bucket.reserveNanos(1000)
+        assertTrue(bucket.reserveNanos(1000) > 0)
+
+        bucket.updateRate(0)
+        assertEquals(0L, bucket.remainingWaitNanos())
+        bucket.updateRate(200)
+        assertEquals(0L, bucket.reserveNanos(1000))
+    }
+
+    @Test
+    fun liveRateIncreaseShortensOutstandingWait() {
+        val clock = FakeClock()
+        val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 100, clock = clock::get)
+        bucket.reserveNanos(1000)
+        bucket.reserveNanos(1000) // 1000 bytes of debt at 100 B/s = 10 s
+
+        bucket.updateRate(200)
+        assertEquals(5_000_000_000L, bucket.remainingWaitNanos())
+    }
+
+    @Test
+    fun cancelledReservationCanBeRefunded() {
+        val clock = FakeClock()
+        val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 1000, clock = clock::get)
+        bucket.reserveNanos(1000)
+        assertTrue(bucket.reserveNanos(1000) > 0)
+
+        bucket.refund(1000)
+        assertEquals(0L, bucket.remainingWaitNanos())
+    }
+
+    @Test
     fun updateRateChangesFuturePacing() {
         val clock = FakeClock()
         val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 1000, clock = clock::get)

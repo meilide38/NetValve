@@ -99,7 +99,7 @@ class NetstackPacketPipeline(
     /** [DatagramStream] over a Go netstack UDP association. */
     private class UdpConnStream(private val conn: UDPConn) : DatagramStream {
         override fun receive(): ByteArray? = runCatching { conn.receive() }.getOrNull()
-        override fun send(data: ByteArray) { runCatching { conn.send(data) } }
+        override fun send(data: ByteArray) { conn.send(data) }
         override fun close() { runCatching { conn.close() } }
     }
 }

@@ -6,12 +6,12 @@ import dev.netvalve.log.LogLevel
 import dev.netvalve.log.Logger
 import dev.netvalve.rules.EffectivePolicy
 import dev.netvalve.rules.RuleEngine
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.min
 
 /**
  * Owns the per-app, per-direction [TokenBucket]s and exposes the single hot-path
@@ -27,8 +27,8 @@ import kotlin.math.min
  * and every live bucket's rate is refreshed in place, so a cap edit takes effect
  * on in-flight connections without reconnecting.
  *
- * Unlimited directions get a `null` bucket, and [pace] on `null` is a no-op — so
- * an unshaped flow pays essentially zero overhead.
+ * Unlimited directions get a shared zero-rate bucket. This lets later schedule
+ * changes update already-open flows; [pace] on a zero-rate bucket is a no-op.
  */
 class ThrottleManager(
     private val ruleEngine: RuleEngine,
@@ -51,22 +51,22 @@ class ThrottleManager(
         if (direction == Direction.DOWNLOAD) policy.downloadBytesPerSec else policy.uploadBytesPerSec
 
     /**
-     * @return the bucket to use for this flow's [direction], or null if that
-     *         direction is unlimited under the current policy.
+     * Always returns a shared bucket, including for currently-unlimited rules.
+     * A zero-rate bucket is a no-op today but can be raised when a schedule or
+     * policy starts throttling an already-open connection.
      */
-    fun bucketFor(uid: Int, direction: Direction): TokenBucket? {
-        val cap = capFor(ruleEngine.policyForUid(uid), direction) ?: run {
-            buckets.remove(key(uid, direction))
-            return null
-        }
+    fun bucketFor(uid: Int, direction: Direction): TokenBucket {
         val k = key(uid, direction)
+        val cap = capFor(ruleEngine.policyForUid(uid), direction)
+        val rate = cap ?: 0L
+        val burst = cap?.let { burstFor(it) } ?: UNLIMITED_BURST_BYTES
         val created = !buckets.containsKey(k)
-        val bucket = buckets.getOrPut(k) { TokenBucket(capacityBytes = burstFor(cap), rateBytesPerSec = cap) }
-        bucket.updateRate(cap, burstFor(cap))
+        val bucket = buckets.getOrPut(k) { TokenBucket(capacityBytes = burst, rateBytesPerSec = rate) }
+        bucket.updateRate(rate, burst)
         if (created) {
             logger?.i(
                 LogCategory.THROTTLE,
-                "bucket created dir=$direction rate=$cap B/s burst=${burstFor(cap)} B",
+                "bucket created dir=$direction rate=$rate B/s burst=$burst B",
                 uid = uid,
             )
         }
@@ -77,39 +77,42 @@ class ThrottleManager(
      * Suspend until [bytes] of allowance are available on [bucket], then return.
      * A null bucket returns immediately (unlimited). Never drops.
      *
-     * The single wait is clamped to [MAX_PACE_NANOS] so a pathological (tiny) cap
-     * can never look like a permanent stall — item 7: pacing never blocks
-     * indefinitely. For realistic caps the clamp never triggers (waits < 150 ms).
+     * The full reservation wait is honored. Truncating a wait would repay only
+     * part of the token debt and allow sustained throughput to exceed the cap,
+     * especially at low configured rates.
      */
     suspend fun pace(bucket: TokenBucket?, bytes: Long) {
         if (bucket == null || bytes <= 0) return
-        val rawWait = bucket.reserveNanos(bytes)
-        val waitNanos = min(rawWait, MAX_PACE_NANOS)
+        val initialWait = bucket.reserveNanos(bytes)
 
         if (logger?.isEnabled(LogLevel.DEBUG) == true) {
             logger.d(
                 LogCategory.THROTTLE,
                 "pace requested=$bytes rate=${bucket.configuredRate} burst=${bucket.configuredBurst} " +
-                    "tokens=${bucket.availableTokens()} refill=${bucket.lastRefillAmount} " +
-                    "waitNs=$rawWait${if (rawWait > MAX_PACE_NANOS) " (clamped→$waitNanos)" else ""}",
+                    "tokens=${bucket.availableTokens()} refill=${bucket.lastRefillAmount} waitNs=$initialWait",
             )
         }
-        if (rawWait > MAX_PACE_NANOS) {
-            logger?.w(
-                LogCategory.THROTTLE,
-                "pace wait ${rawWait / 1_000_000} ms clamped to ${MAX_PACE_NANOS / 1_000_000} ms " +
-                    "(cap too low for ${bytes}B chunk; throughput will exceed the cap)",
-            )
-        }
-        if (waitNanos > 0) {
-            // Round up to the next millisecond; sub-ms waits collapse to ~1 ms.
-            delay((waitNanos + 999_999) / 1_000_000)
+        try {
+            // Re-check periodically so a scheduled rule change (including
+            // unlimited) affects an already-waiting flow without waiting out
+            // the old reservation. The 100 ms poll bounds change latency.
+            while (true) {
+                val waitNanos = bucket.remainingWaitNanos()
+                if (waitNanos <= 0L) break
+                val sliceNanos = waitNanos.coerceAtMost(PACE_RECHECK_NANOS)
+                val waitMillis = sliceNanos / 1_000_000L +
+                    if (sliceNanos % 1_000_000L == 0L) 0L else 1L
+                delay(waitMillis)
+            }
+        } catch (cancelled: CancellationException) {
+            bucket.refund(bytes)
+            throw cancelled
         }
     }
 
     fun releaseFlow(uid: Int) {
-        // Buckets are shared per-uid across a uid's flows, so we keep them until
-        // a rule refresh prunes unlimited ones. Nothing to do per-flow here.
+        // Buckets are shared per-uid across flows and retained so a later
+        // schedule can update a connection that began while unlimited.
     }
 
     private fun refreshAll() {
@@ -119,7 +122,9 @@ class ThrottleManager(
             val direction = if (k and 1L == 1L) Direction.DOWNLOAD else Direction.UPLOAD
             val cap = capFor(ruleEngine.policyForUid(uid), direction)
             if (cap == null) {
-                buckets.remove(k)
+                // Keep the bucket reachable so active flows observe a later
+                // re-enable without having to reconnect.
+                bucket.updateRate(0)
             } else {
                 bucket.updateRate(cap, burstFor(cap))
             }
@@ -127,11 +132,13 @@ class ThrottleManager(
     }
 
     companion object {
+        private const val PACE_RECHECK_NANOS = 100_000_000L
+
+        private const val UNLIMITED_BURST_BYTES = 64 * 1024L
+
         /** ~250 ms of burst, floored so a full app-layer write never deadlocks. */
         fun burstFor(rateBytesPerSec: Long): Long =
             (rateBytesPerSec / 4).coerceAtLeast(64 * 1024)
 
-        /** Upper bound on a single pace sleep (item 7: never block indefinitely). */
-        const val MAX_PACE_NANOS: Long = 2_000_000_000L // 2 s
     }
 }

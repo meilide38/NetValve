@@ -71,16 +71,37 @@ class TokenBucket(
 
     /**
      * Change the sustained rate (and optionally the burst capacity) live, e.g.
-     * when a rule changes while a flow is active. Accrued debt/allowance is
-     * preserved; the balance is only clamped to the new capacity ceiling.
+     * when a rule changes while a flow is active. Rate changes preserve the
+     * current balance; transitioning to unlimited clears debt and restores a
+     * fresh burst so a later re-enable does not inherit stale wait time.
      */
     fun updateRate(newRateBytesPerSec: Long, newCapacityBytes: Long = -1) = synchronized(lock) {
         refillLocked()
+        if (newRateBytesPerSec <= 0 && rate > 0.0) {
+            // A rule becoming unlimited releases any reserved wait. If the rule
+            // is later re-enabled, start from a fresh burst rather than carrying
+            // debt accumulated under the old cap.
+            tokens = capacity
+        }
         rate = newRateBytesPerSec.toDouble()
         if (newCapacityBytes > 0) {
             capacity = newCapacityBytes.toDouble()
             if (tokens > capacity) tokens = capacity
         }
+    }
+
+    /** Remaining time until all currently reserved debt is repaid. */
+    fun remainingWaitNanos(): Long = synchronized(lock) {
+        refillLocked()
+        if (rate <= 0.0 || tokens >= 0.0) return 0L
+        ceil(-tokens / rate * 1_000_000_000.0).toLong().coerceAtLeast(0L)
+    }
+
+    /** Return a reservation when its caller is cancelled before sending bytes. */
+    fun refund(bytes: Long) = synchronized(lock) {
+        if (bytes <= 0) return@synchronized
+        refillLocked()
+        tokens = min(capacity, tokens + bytes)
     }
 
     /** For tests/introspection. */
