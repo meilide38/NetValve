@@ -67,7 +67,7 @@ jobs:
           EXPECTED_FINGERPRINT="FD17894DF779A2D7D1B4319FC28B9303D717100786354E6698C54352707DB2F1"
           echo "Signing certificate SHA-256: $ACTUAL_FINGERPRINT"
           if [ "$ACTUAL_FINGERPRINT" != "$EXPECTED_FINGERPRINT" ]; then
-            echo "::error::Signing key does not match NetValve 1.0.0. Refusing to publish an incompatible APK."
+            echo "::error::Signing key does not match the established NetValve release signing certificate. Refusing to publish an incompatible APK."
             exit 1
           fi
           cat > keystore.properties <<EOF
@@ -106,7 +106,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NetValve-1.0.3-netstack-arm64
-          path: release/NetValve-1.0.2-netstack-arm64.apk
+          path: release/NetValve-1.0.3-netstack-arm64.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -119,5 +119,5 @@ jobs:
           prerelease: false
           make_latest: true
           generate_release_notes: true
-          files: release/NetValve-1.0.2-netstack-arm64.apk
+          files: release/NetValve-1.0.3-netstack-arm64.apk
           fail_on_unmatched_files: true
