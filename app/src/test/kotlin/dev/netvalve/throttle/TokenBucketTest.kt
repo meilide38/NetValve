@@ -93,6 +93,17 @@ class TokenBucketTest {
     }
 
     @Test
+    fun existingUnlimitedBucketCanBeThrottledByLaterSchedule() {
+        val clock = FakeClock()
+        val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 0, clock = clock::get)
+        assertEquals(0L, bucket.reserveNanos(1000))
+
+        bucket.updateRate(1000, 1000)
+        assertEquals(0L, bucket.reserveNanos(1000))
+        assertEquals(1_000_000_000L, bucket.reserveNanos(1000))
+    }
+
+    @Test
     fun unlimitedAndReenabledRuleClearsOldDebtForExistingFlows() {
         val clock = FakeClock()
         val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 100, clock = clock::get)
