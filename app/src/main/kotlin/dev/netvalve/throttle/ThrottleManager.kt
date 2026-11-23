@@ -27,8 +27,8 @@ import java.util.concurrent.ConcurrentHashMap
  * and every live bucket's rate is refreshed in place, so a cap edit takes effect
  * on in-flight connections without reconnecting.
  *
- * Unlimited directions get a `null` bucket, and [pace] on `null` is a no-op — so
- * an unshaped flow pays essentially zero overhead.
+ * Unlimited directions get a shared zero-rate bucket. This lets later schedule
+ * changes update already-open flows; [pace] on a zero-rate bucket is a no-op.
  */
 class ThrottleManager(
     private val ruleEngine: RuleEngine,
