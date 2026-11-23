@@ -267,11 +267,15 @@ class NetValveVpnService : VpnService(), SocketProtector {
         mgr.notify(NotificationHelper.NOTIFICATION_ID, NotificationHelper.build(this, status, snapshot))
     }
 
-    private fun fail(message: String) {
+    private suspend fun fail(message: String) {
         notificationJob?.cancel()
         notificationJob = null
         controller.publish(VpnStatus(TunnelState.ERROR, message = message))
-        scope.launch { settingsRepository.updateSettings { it.copy(enabled = false) } }
+        try {
+            settingsRepository.updateSettings { it.copy(enabled = false) }
+        } catch (t: Throwable) {
+            logger.e(LogCategory.ERROR, "failed to persist VPN disabled state: ${t.message}")
+        }
         stopForegroundCompat()
         stopSelf()
     }
