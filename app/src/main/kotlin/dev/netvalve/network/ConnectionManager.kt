@@ -43,7 +43,9 @@ class ConnectionManager(
     fun openUdp(ctx: FlowContext, protector: SocketProtector): UdpUpstream {
         val socket = DatagramSocket()
         if (!protector.protect(socket)) {
-            logger.w(LogCategory.ERROR, "protect() failed for ${ctx.shortKey()}")
+            socket.close()
+            logger.e(LogCategory.ERROR, "protect() failed for ${ctx.shortKey()}; refusing unprotected socket")
+            throw IOException("VPN socket protection failed for ${ctx.shortKey()}")
         }
         socket.connect(InetSocketAddress(ctx.destinationAddress, ctx.destinationPort))
         return UdpUpstream(socket)
