@@ -171,6 +171,7 @@ class FlowSupervisor(
                             // zero-rate bucket still observes future schedule changes.
                             upstream.send(dg)
                             stats.recordUpload(uid, dg.size.toLong())
+                            moduleChain.onBytes(ctx, uid, Direction.UPLOAD, dg.size)
                         } else if (!egressQueue.offer(dg, dg.size.toLong())) {
                             logger.d(LogCategory.THROTTLE, "udp tail-drop ${ctx.shortKey()}", uid = uid)
                         }
