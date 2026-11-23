@@ -54,17 +54,17 @@ class RuleEngine(
         )
 
     /**
-     * Revision ticks on input changes and every 15 seconds while a bulk schedule
-     * is enabled, so already-open flows cross schedule boundaries promptly.
+     * Revision ticks on input changes and every 15 seconds so both per-app and
+     * bulk time-window schedules refresh already-open flows promptly.
      */
     val revision: StateFlow<Long> = MutableStateFlow(0L).also { flow ->
         snapshot.onEach { flow.value = flow.value + 1 }.launchIn(scope)
         scope.launch {
             while (true) {
                 delay(15_000)
-                if (snapshot.value.settings.bulkThrottleEnabled) {
-                    flow.value = flow.value + 1
-                }
+                // Per-app TimeWindow conditions also need a clock-driven tick;
+                // otherwise existing connections keep the policy from flow-open.
+                flow.value = flow.value + 1
             }
         }
     }
