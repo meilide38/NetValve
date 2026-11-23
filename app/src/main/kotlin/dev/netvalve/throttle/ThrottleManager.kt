@@ -66,7 +66,7 @@ class ThrottleManager(
         if (created) {
             logger?.i(
                 LogCategory.THROTTLE,
-                "bucket created dir=$direction rate=$cap B/s burst=${burstFor(cap)} B",
+                "bucket created dir=$direction rate=$rate B/s burst=$burst B",
                 uid = uid,
             )
         }
@@ -111,8 +111,8 @@ class ThrottleManager(
     }
 
     fun releaseFlow(uid: Int) {
-        // Buckets are shared per-uid across a uid's flows, so we keep them until
-        // a rule refresh prunes unlimited ones. Nothing to do per-flow here.
+        // Buckets are shared per-uid across flows and retained so a later
+        // schedule can update a connection that began while unlimited.
     }
 
     private fun refreshAll() {
