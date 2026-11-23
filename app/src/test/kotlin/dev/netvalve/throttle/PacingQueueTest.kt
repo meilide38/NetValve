@@ -1,5 +1,9 @@
 package dev.netvalve.throttle
 
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -47,6 +51,15 @@ class PacingQueueTest {
         assertEquals(1L, q.droppedCount)
         assertEquals(200L, q.droppedBytes)
         assertEquals(0, q.size)
+    }
+
+    @Test
+    fun pollAwaitWakesWhenAnItemIsOffered() = runBlocking {
+        val q = PacingQueue<Int>(capacityBytes = 100)
+        val pending = async(start = CoroutineStart.UNDISPATCHED) { q.pollAwait() }
+
+        assertTrue(q.offer(7, 10))
+        assertEquals(7, pending.await())
     }
 
     @Test
