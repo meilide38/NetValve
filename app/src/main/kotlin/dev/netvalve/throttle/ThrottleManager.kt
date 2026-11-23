@@ -51,20 +51,18 @@ class ThrottleManager(
         if (direction == Direction.DOWNLOAD) policy.downloadBytesPerSec else policy.uploadBytesPerSec
 
     /**
-     * @return the bucket to use for this flow's [direction], or null if that
-     *         direction is unlimited under the current policy.
+     * Always returns a shared bucket, including for currently-unlimited rules.
+     * A zero-rate bucket is a no-op today but can be raised when a schedule or
+     * policy starts throttling an already-open connection.
      */
-    fun bucketFor(uid: Int, direction: Direction): TokenBucket? {
+    fun bucketFor(uid: Int, direction: Direction): TokenBucket {
         val k = key(uid, direction)
-        val cap = capFor(ruleEngine.policyForUid(uid), direction) ?: run {
-            // Keep the shared bucket in the map: existing flows retain this
-            // reference and must see later re-enabling/rate changes as well.
-            buckets[k]?.updateRate(0)
-            return null
-        }
+        val cap = capFor(ruleEngine.policyForUid(uid), direction)
+        val rate = cap ?: 0L
+        val burst = cap?.let { burstFor(it) } ?: UNLIMITED_BURST_BYTES
         val created = !buckets.containsKey(k)
-        val bucket = buckets.getOrPut(k) { TokenBucket(capacityBytes = burstFor(cap), rateBytesPerSec = cap) }
-        bucket.updateRate(cap, burstFor(cap))
+        val bucket = buckets.getOrPut(k) { TokenBucket(capacityBytes = burst, rateBytesPerSec = rate) }
+        bucket.updateRate(rate, burst)
         if (created) {
             logger?.i(
                 LogCategory.THROTTLE,
@@ -135,6 +133,8 @@ class ThrottleManager(
 
     companion object {
         private const val PACE_RECHECK_NANOS = 100_000_000L
+
+        private const val UNLIMITED_BURST_BYTES = 64 * 1024L
 
         /** ~250 ms of burst, floored so a full app-layer write never deadlocks. */
         fun burstFor(rateBytesPerSec: Long): Long =
