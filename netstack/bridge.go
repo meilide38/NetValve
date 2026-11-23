@@ -104,6 +104,12 @@ func NewTunnel(tunFd int, mtu int, ipv6Mode string, handler Handler) (*Tunnel, e
 	if handler == nil {
 		return nil, errors.New("nil handler")
 	}
+	if mtu < 576 || mtu > 65535 {
+		return nil, fmt.Errorf("invalid MTU: %d", mtu)
+	}
+	if ipv6Mode != ipv6Relay && ipv6Mode != ipv6FastReject {
+		return nil, fmt.Errorf("invalid IPv6 mode: %q", ipv6Mode)
+	}
 
 	linkEP, err := fdbased.New(&fdbased.Options{
 		FDs: []int{tunFd},
@@ -120,17 +126,20 @@ func NewTunnel(tunFd int, mtu int, ipv6Mode string, handler Handler) (*Tunnel, e
 	})
 
 	if tErr := s.CreateNIC(nicID, linkEP); tErr != nil {
+		s.Close()
 		return nil, fmt.Errorf("CreateNIC: %v", tErr)
 	}
 	// The TUN carries traffic for arbitrary destinations, so the NIC must accept
 	// packets not addressed to a configured local address, and originate replies
 	// with spoofed source addresses.
 	if tErr := s.SetPromiscuousMode(nicID, true); tErr != nil {
+		s.Close()
 		return nil, fmt.Errorf("SetPromiscuousMode: %v", tErr)
 	}
 	if tErr := s.SetSpoofing(nicID, true); tErr != nil {
+		s.Close()
 		return nil, fmt.Errorf("SetSpoofing: %v", tErr)
-	}
+}
 	// Default routes for both families so every dst is routed to our NIC.
 	s.SetRouteTable([]tcpip.Route{
 		{Destination: header.IPv4EmptySubnet, NIC: nicID},
@@ -218,7 +227,7 @@ func (t *Tunnel) installTCPForwarder() {
 		t.handler.HandleTCP(
 			id.RemoteAddress.String(), int(id.RemotePort),
 			id.LocalAddress.String(), int(id.LocalPort),
-			 handedConn,
+			handedConn,
 		)
 	})
 	t.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, fwd.HandlePacket)
