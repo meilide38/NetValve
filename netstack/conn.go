@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"net"
+	"sync"
 	"time"
 
 	"github.com/sagernet/gvisor/pkg/tcpip/adapters/gonet"
@@ -10,17 +11,25 @@ import (
 // tcpConn adapts gonet.TCPConn to the gomobile-friendly TCPConn interface.
 // Read/Write are blocking; the Kotlin relay runs them on an IO dispatcher.
 type tcpConn struct {
-	Conn *gonet.TCPConn
+	Conn      *gonet.TCPConn
+	onClose   func()
+	closeOnce sync.Once
 }
 
 func (c *tcpConn) Read(p []byte) (int, error)  { return c.Conn.Read(p) }
 func (c *tcpConn) Write(p []byte) (int, error) { return c.Conn.Write(p) }
-func (c *tcpConn) Close() error                { return c.Conn.Close() }
+func (c *tcpConn) Close() error {
+	err := c.Conn.Close()
+	c.closeOnce.Do(func() { if c.onClose != nil { c.onClose() } })
+	return err
+}
 
 // udpConn adapts gonet.UDPConn. Receive returns one datagram's payload; a read
 // deadline bounds idle associations so goroutines don't leak.
 type udpConn struct {
-	conn *gonet.UDPConn
+	conn      *gonet.UDPConn
+	onClose   func()
+	closeOnce sync.Once
 }
 
 func (c *udpConn) Receive() ([]byte, error) {
@@ -38,7 +47,11 @@ func (c *udpConn) Send(p []byte) error {
 	return err
 }
 
-func (c *udpConn) Close() error { return c.conn.Close() }
+func (c *udpConn) Close() error {
+	err := c.conn.Close()
+	c.closeOnce.Do(func() { if c.onClose != nil { c.onClose() } })
+	return err
+}
 
 // compile-time interface checks.
 var (
