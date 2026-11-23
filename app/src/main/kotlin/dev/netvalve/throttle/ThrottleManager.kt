@@ -6,6 +6,7 @@ import dev.netvalve.log.LogLevel
 import dev.netvalve.log.Logger
 import dev.netvalve.rules.EffectivePolicy
 import dev.netvalve.rules.RuleEngine
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
@@ -84,20 +85,30 @@ class ThrottleManager(
      */
     suspend fun pace(bucket: TokenBucket?, bytes: Long) {
         if (bucket == null || bytes <= 0) return
-        val waitNanos = bucket.reserveNanos(bytes)
+        val initialWait = bucket.reserveNanos(bytes)
 
         if (logger?.isEnabled(LogLevel.DEBUG) == true) {
             logger.d(
                 LogCategory.THROTTLE,
                 "pace requested=$bytes rate=${bucket.configuredRate} burst=${bucket.configuredBurst} " +
-                    "tokens=${bucket.availableTokens()} refill=${bucket.lastRefillAmount} waitNs=$waitNanos",
+                    "tokens=${bucket.availableTokens()} refill=${bucket.lastRefillAmount} waitNs=$initialWait",
             )
         }
-        if (waitNanos > 0) {
-            // Round up without overflowing when waitNanos is near Long.MAX_VALUE.
-            val waitMillis = waitNanos / 1_000_000L +
-                if (waitNanos % 1_000_000L == 0L) 0L else 1L
-            delay(waitMillis)
+        try {
+            // Re-check periodically so a scheduled rule change (including
+            // unlimited) affects an already-waiting flow without waiting out
+            // the old reservation. The 100 ms poll bounds change latency.
+            while (true) {
+                val waitNanos = bucket.remainingWaitNanos()
+                if (waitNanos <= 0L) break
+                val sliceNanos = waitNanos.coerceAtMost(PACE_RECHECK_NANOS)
+                val waitMillis = sliceNanos / 1_000_000L +
+                    if (sliceNanos % 1_000_000L == 0L) 0L else 1L
+                delay(waitMillis)
+            }
+        } catch (cancelled: CancellationException) {
+            bucket.refund(bytes)
+            throw cancelled
         }
     }
 
@@ -123,6 +134,8 @@ class ThrottleManager(
     }
 
     companion object {
+        private const val PACE_RECHECK_NANOS = 100_000_000L
+
         /** ~250 ms of burst, floored so a full app-layer write never deadlocks. */
         fun burstFor(rateBytesPerSec: Long): Long =
             (rateBytesPerSec / 4).coerceAtLeast(64 * 1024)
