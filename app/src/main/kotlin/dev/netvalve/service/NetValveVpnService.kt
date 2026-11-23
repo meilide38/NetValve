@@ -13,6 +13,7 @@ import dev.netvalve.network.SocketProtector
 import dev.netvalve.repository.AppSelectionRepository
 import dev.netvalve.repository.SettingsRepository
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -86,6 +87,8 @@ class NetValveVpnService : VpnService(), SocketProtector {
     private suspend fun establishSafely() {
         try {
             establishAndStart()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (t: Throwable) {
             logger.e(LogCategory.ERROR, "VPN startup failed: ${t.message}")
             runCatching { trafficEngine.stop() }
