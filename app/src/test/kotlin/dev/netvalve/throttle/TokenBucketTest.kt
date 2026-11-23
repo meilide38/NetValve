@@ -93,6 +93,30 @@ class TokenBucketTest {
     }
 
     @Test
+    fun unlimitedAndReenabledRuleClearsOldDebtForExistingFlows() {
+        val clock = FakeClock()
+        val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 100, clock = clock::get)
+        bucket.reserveNanos(1000)
+        assertTrue(bucket.reserveNanos(1000) > 0)
+
+        bucket.updateRate(0)
+        assertEquals(0L, bucket.remainingWaitNanos())
+        bucket.updateRate(200)
+        assertEquals(0L, bucket.reserveNanos(1000))
+    }
+
+    @Test
+    fun cancelledReservationCanBeRefunded() {
+        val clock = FakeClock()
+        val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 1000, clock = clock::get)
+        bucket.reserveNanos(1000)
+        assertTrue(bucket.reserveNanos(1000) > 0)
+
+        bucket.refund(1000)
+        assertEquals(0L, bucket.remainingWaitNanos())
+    }
+
+    @Test
     fun updateRateChangesFuturePacing() {
         val clock = FakeClock()
         val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 1000, clock = clock::get)
