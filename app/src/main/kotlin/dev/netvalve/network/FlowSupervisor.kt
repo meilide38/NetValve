@@ -161,43 +161,61 @@ class FlowSupervisor(
         val downBucket = if (dnsExempt || bypassThrottling) null else throttleManager.bucketFor(uid, Direction.DOWNLOAD)
         val egressQueue = PacingQueue<ByteArray>(UDP_QUEUE_BYTES, PacingQueue.DropPolicy.DROP_OLDEST)
 
+        val closeFlow = {
+            egressQueue.close()
+            runCatching { upstream.close() }
+            runCatching { appSide.close() }
+        }
+
         try {
             coroutineScope {
-                // reader: app -> queue
+                // reader: app -> queue (or direct send when unshaped)
                 launch {
-                    while (isActive) {
-                        val dg = appSide.receive() ?: break
-                        if (ctx.isDns) { stats.onDnsQuery() }
-                        if (upBucket == null || upBucket.configuredRate <= 0L) {
-                            // Keep unlimited UDP on the direct path; the shared
-                            // zero-rate bucket still observes future schedule changes.
+                    try {
+                        while (isActive) {
+                            val dg = appSide.receive() ?: break
+                            if (ctx.isDns) { stats.onDnsQuery() }
+                            if (upBucket == null || upBucket.configuredRate <= 0L) {
+                                // Keep unlimited UDP on the direct path; the shared
+                                // zero-rate bucket still observes future schedule changes.
+                                upstream.send(dg)
+                                stats.recordUpload(uid, dg.size.toLong())
+                                moduleChain.onBytes(ctx, uid, Direction.UPLOAD, dg.size)
+                            } else if (!egressQueue.offer(dg, dg.size.toLong())) {
+                                logger.d(LogCategory.THROTTLE, "udp tail-drop ${ctx.shortKey()}", uid = uid)
+                            }
+                        }
+                    } finally {
+                        closeFlow()
+                    }
+                }
+                // pacer: queue -> upstream (UPLOAD). pollAwait suspends while empty.
+                if (upBucket != null) launch {
+                    try {
+                        while (isActive) {
+                            val dg = egressQueue.pollAwait()
+                            throttleManager.pace(upBucket, dg.size.toLong())
                             upstream.send(dg)
                             stats.recordUpload(uid, dg.size.toLong())
                             moduleChain.onBytes(ctx, uid, Direction.UPLOAD, dg.size)
-                        } else if (!egressQueue.offer(dg, dg.size.toLong())) {
-                            logger.d(LogCategory.THROTTLE, "udp tail-drop ${ctx.shortKey()}", uid = uid)
                         }
-                    }
-                }
-                // pacer: queue -> upstream (UPLOAD)
-                if (upBucket != null) launch {
-                    while (isActive) {
-                        val dg = egressQueue.pollAwait()
-                        throttleManager.pace(upBucket, dg.size.toLong())
-                        upstream.send(dg)
-                        stats.recordUpload(uid, dg.size.toLong())
-                        moduleChain.onBytes(ctx, uid, Direction.UPLOAD, dg.size)
+                    } finally {
+                        closeFlow()
                     }
                 }
                 // upstream -> app (DOWNLOAD)
                 launch {
-                    while (isActive) {
-                        val data = upstream.receive() ?: break
-                        throttleManager.pace(downBucket, data.size.toLong())
-                        appSide.send(data)
-                        stats.recordDownload(uid, data.size.toLong())
-                        moduleChain.onBytes(ctx, uid, Direction.DOWNLOAD, data.size)
-                        coroutineContext.ensureActive()
+                    try {
+                        while (isActive) {
+                            val data = upstream.receive() ?: break
+                            throttleManager.pace(downBucket, data.size.toLong())
+                            appSide.send(data)
+                            stats.recordDownload(uid, data.size.toLong())
+                            moduleChain.onBytes(ctx, uid, Direction.DOWNLOAD, data.size)
+                            coroutineContext.ensureActive()
+                        }
+                    } finally {
+                        closeFlow()
                     }
                 }
             }
