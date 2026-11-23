@@ -1,5 +1,6 @@
 package dev.netvalve.service
 
+import android.os.ParcelFileDescriptor
 import dev.netvalve.data.model.Ipv6Mode
 import dev.netvalve.log.LogCategory
 import dev.netvalve.log.Logger
@@ -78,6 +79,7 @@ class TrafficEngine @Inject constructor(
         if (isRunning) return
         paused.set(false)
         var monitorStarted = false
+        var fdHandedToPipeline = false
         var createdPipeline: PacketPipeline? = null
         try {
             deviceStateMonitor.start()
@@ -126,6 +128,9 @@ class TrafficEngine @Inject constructor(
                         "have no connectivity). Build with -Pnetvalve.netstack=true for real traffic.",
                 )
             }
+            // From this point the pipeline owns the descriptor, including any
+            // partial-start cleanup performed by its stop() implementation.
+            fdHandedToPipeline = true
             p.start(tunFd, config, supervisor)
             pipeline = p
             isRunning = true
@@ -149,6 +154,9 @@ class TrafficEngine @Inject constructor(
             // start() is transactional: do not strand a partially-created packet
             // engine, relay scope, or device-state observer when initialization fails.
             runCatching { createdPipeline?.stop() }
+            if (!fdHandedToPipeline) {
+                runCatching { ParcelFileDescriptor.adoptFd(tunFd).close() }
+            }
             pipeline = null
             isRunning = false
             sessionScope?.cancel()
