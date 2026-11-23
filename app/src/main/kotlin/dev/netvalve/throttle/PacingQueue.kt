@@ -89,4 +89,9 @@ class PacingQueue<T>(
     fun clear() = synchronized(this) {
         deque.clear(); bytesQueued = 0
     }
+
+    /** Wake and terminate a waiting drain coroutine when the owning flow ends. */
+    fun close() {
+        availableSignal.close()
+    }
 }
