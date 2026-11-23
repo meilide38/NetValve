@@ -179,8 +179,7 @@ class FlowSupervisor(
                 // pacer: queue -> upstream (UPLOAD)
                 if (upBucket != null) launch {
                     while (isActive) {
-                        val dg = egressQueue.poll()
-                        if (dg == null) { kotlinx.coroutines.delay(5); continue }
+                        val dg = egressQueue.pollAwait()
                         throttleManager.pace(upBucket, dg.size.toLong())
                         upstream.send(dg)
                         stats.recordUpload(uid, dg.size.toLong())
