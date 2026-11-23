@@ -61,7 +61,6 @@ class ThrottleManager(
             buckets.remove(k)?.updateRate(0)
             return null
         }
-        val k = key(uid, direction)
         val created = !buckets.containsKey(k)
         val bucket = buckets.getOrPut(k) { TokenBucket(capacityBytes = burstFor(cap), rateBytesPerSec = cap) }
         bucket.updateRate(cap, burstFor(cap))
