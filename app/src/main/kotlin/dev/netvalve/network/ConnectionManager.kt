@@ -3,6 +3,7 @@ package dev.netvalve.network
 import dev.netvalve.log.LogCategory
 import dev.netvalve.log.Logger
 import dev.netvalve.stats.StatsCollector
+import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetSocketAddress
@@ -27,7 +28,9 @@ class ConnectionManager(
         val socket = Socket()
         // Protect BEFORE connect so the SYN is not routed back into the tunnel.
         if (!protector.protect(socket)) {
-            logger.w(LogCategory.ERROR, "protect() failed for ${ctx.shortKey()}")
+            socket.close()
+            logger.e(LogCategory.ERROR, "protect() failed for ${ctx.shortKey()}; refusing unprotected socket")
+            throw IOException("VPN socket protection failed for ${ctx.shortKey()}")
         }
         val started = System.nanoTime()
         socket.tcpNoDelay = true
