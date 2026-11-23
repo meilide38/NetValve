@@ -54,7 +54,8 @@ class FlowSupervisor(
 
     private suspend fun relayTcp(ctx: FlowContext, appSide: FlowStream) {
         val uid = uidResolver.resolve(ctx)
-        val verdict = if (paused() || !ruleEngine.isControlled(uid)) {
+        val bypassThrottling = paused() || !ruleEngine.isControlled(uid)
+        val verdict = if (bypassThrottling) {
             // Paused or not-controlled: relay unshaped so connectivity is preserved.
             FlowVerdict(blocked = false, downloadBytesPerSec = null, uploadBytesPerSec = null, warnThresholdPercent = null, tags = emptyMap())
         } else {
@@ -81,8 +82,8 @@ class FlowSupervisor(
             return
         }
 
-        val upBucket = throttleManager.bucketFor(uid, Direction.UPLOAD)
-        val downBucket = throttleManager.bucketFor(uid, Direction.DOWNLOAD)
+        val upBucket = if (bypassThrottling) null else throttleManager.bucketFor(uid, Direction.UPLOAD)
+        val downBucket = if (bypassThrottling) null else throttleManager.bucketFor(uid, Direction.DOWNLOAD)
 
         try {
             coroutineScope {
@@ -129,7 +130,8 @@ class FlowSupervisor(
 
     private suspend fun relayUdp(ctx: FlowContext, appSide: DatagramStream) {
         val uid = uidResolver.resolve(ctx)
-        val verdict = if (paused() || !ruleEngine.isControlled(uid)) {
+        val bypassThrottling = paused() || !ruleEngine.isControlled(uid)
+        val verdict = if (bypassThrottling) {
             FlowVerdict(blocked = false, downloadBytesPerSec = null, uploadBytesPerSec = null, warnThresholdPercent = null, tags = emptyMap())
         } else {
             moduleChain.evaluate(FlowOpenInput(ctx, uid))
@@ -155,8 +157,8 @@ class FlowSupervisor(
 
         // Paced, NOT dropped: a bounded queue smooths bursts; tail-drop is the
         // documented last resort only when the app sustainably outruns its cap.
-        val upBucket = if (dnsExempt) null else throttleManager.bucketFor(uid, Direction.UPLOAD)
-        val downBucket = if (dnsExempt) null else throttleManager.bucketFor(uid, Direction.DOWNLOAD)
+        val upBucket = if (dnsExempt || bypassThrottling) null else throttleManager.bucketFor(uid, Direction.UPLOAD)
+        val downBucket = if (dnsExempt || bypassThrottling) null else throttleManager.bucketFor(uid, Direction.DOWNLOAD)
         val egressQueue = PacingQueue<ByteArray>(UDP_QUEUE_BYTES, PacingQueue.DropPolicy.DROP_OLDEST)
 
         try {
