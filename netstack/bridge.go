@@ -213,7 +213,7 @@ func (t *Tunnel) installTCPForwarder() {
 		t.handler.HandleTCP(
 			id.RemoteAddress.String(), int(id.RemotePort),
 			id.LocalAddress.String(), int(id.LocalPort),
-			&tcpConn{Conn: conn},
+			&tcpConn{Conn: conn, onClose: func() { atomic.AddInt64(&t.tcpFlows, -1) }},
 		)
 	})
 	t.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, fwd.HandlePacket)
@@ -246,7 +246,7 @@ func (t *Tunnel) installUDPForwarder() {
 		t.handler.HandleUDP(
 			id.RemoteAddress.String(), int(id.RemotePort),
 			id.LocalAddress.String(), int(id.LocalPort),
-			&udpConn{conn: conn},
+			&udpConn{conn: conn, onClose: func() { atomic.AddInt64(&t.udpFlows, -1) }},
 		)
 		return true
 	})
