@@ -66,6 +66,7 @@ class FlowSupervisor(
         if (verdict.blocked) {
             logger.i(LogCategory.BLOCK, "reset ${ctx.shortKey()}", uid = uid)
             appSide.close() // netstack turns this into a TCP RST
+            stats.onFlowClosed(uid)
             moduleChain.onFlowClose(ctx, uid)
             return
         }
@@ -148,7 +149,7 @@ class FlowSupervisor(
             connectionManager.openUdp(ctx, config.protector).also { it.setTimeout(UDP_IDLE_TIMEOUT_MILLIS) }
         } catch (t: Throwable) {
             logger.w(LogCategory.ERROR, "udp open failed ${ctx.shortKey()}: ${t.message}", uid = uid)
-            appSide.close(); moduleChain.onFlowClose(ctx, uid); return
+            appSide.close(); stats.onFlowClosed(uid); moduleChain.onFlowClose(ctx, uid); return
         }
 
         // Paced, NOT dropped: a bounded queue smooths bursts; tail-drop is the
