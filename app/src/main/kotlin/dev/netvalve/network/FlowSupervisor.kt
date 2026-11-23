@@ -166,7 +166,9 @@ class FlowSupervisor(
                     while (isActive) {
                         val dg = appSide.receive() ?: break
                         if (ctx.isDns) { stats.onDnsQuery() }
-                        if (upBucket == null) {
+                        if (upBucket == null || upBucket.configuredRate <= 0L) {
+                            // Keep unlimited UDP on the direct path; the shared
+                            // zero-rate bucket still observes future schedule changes.
                             upstream.send(dg)
                             stats.recordUpload(uid, dg.size.toLong())
                         } else if (!egressQueue.offer(dg, dg.size.toLong())) {
