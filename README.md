@@ -237,7 +237,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 
 Download the latest pre-built APK from the [Releases page](https://github.com/meilide38/NetValve/releases).
 
-> **Note**: The default APK uses the **loopback engine** (drives the UI but does not forward traffic upstream). For real traffic shaping, you need to build with the **netstack engine** — see [Build From Source](#-build-from-source).
+> **Note**: Official APKs published from this repository are built with the **gVisor netstack engine** and forward real traffic. Local Gradle builds use the loopback development engine unless you explicitly build with `-Pnetvalve.netstack=true` — see [Build From Source](#-build-from-source).
 
 ### Option 2: Build From Source
 
