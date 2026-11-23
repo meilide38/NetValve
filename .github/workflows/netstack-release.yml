@@ -1,4 +1,4 @@
-name: Build NetValve 1.0.3 (gVisor netstack)
+name: Build NetValve 1.0.4 (gVisor netstack)
 
 on:
   pull_request:
@@ -20,7 +20,7 @@ on:
       - "gradle.properties"
       - ".github/workflows/netstack-release.yml"
     tags:
-      - "v1.0.3"
+      - "v1.0.4"
   workflow_dispatch:
 
 concurrency:
@@ -102,15 +102,15 @@ jobs:
           test -n "$APK"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='dev.netvalve' versionCode='5' versionName='1.0.3'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "package: name='dev.netvalve' versionCode='6' versionName='1.0.4'"
           mkdir -p release
-          cp "$APK" release/NetValve-1.0.3-netstack-arm64.apk
+          cp "$APK" release/NetValve-1.0.4-netstack-arm64.apk
 
       - name: Upload APK artifact (fallback download)
         uses: actions/upload-artifact@v4
         with:
-          name: NetValve-1.0.3-netstack-arm64
-          path: release/NetValve-1.0.3-netstack-arm64.apk
+          name: NetValve-1.0.4-netstack-arm64
+          path: release/NetValve-1.0.4-netstack-arm64.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -118,10 +118,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.3
-          name: NetValve 1.0.3 (gVisor netstack)
+          tag_name: v1.0.4
+          name: NetValve 1.0.4 (gVisor netstack)
           prerelease: false
           make_latest: true
           generate_release_notes: true
-          files: release/NetValve-1.0.3-netstack-arm64.apk
+          files: release/NetValve-1.0.4-netstack-arm64.apk
           fail_on_unmatched_files: true
