@@ -141,6 +141,7 @@ class FlowSupervisor(
         if (verdict.blocked) {
             logger.i(LogCategory.BLOCK, "drop udp ${ctx.shortKey()}", uid = uid)
             appSide.close()
+            stats.onFlowClosed(uid)
             moduleChain.onFlowClose(ctx, uid)
             return
         }
