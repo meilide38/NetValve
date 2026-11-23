@@ -117,6 +117,17 @@ class TokenBucketTest {
     }
 
     @Test
+    fun liveRateIncreaseShortensOutstandingWait() {
+        val clock = FakeClock()
+        val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 100, clock = clock::get)
+        bucket.reserveNanos(1000)
+        bucket.reserveNanos(1000) // 1000 bytes of debt at 100 B/s = 10 s
+
+        bucket.updateRate(200)
+        assertEquals(5_000_000_000L, bucket.remainingWaitNanos())
+    }
+
+    @Test
     fun cancelledReservationCanBeRefunded() {
         val clock = FakeClock()
         val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 1000, clock = clock::get)
