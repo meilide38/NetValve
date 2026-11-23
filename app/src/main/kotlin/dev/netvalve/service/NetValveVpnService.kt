@@ -15,10 +15,13 @@ import dev.netvalve.repository.SettingsRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.net.DatagramSocket
 import java.net.Socket
 import javax.inject.Inject
@@ -44,7 +47,9 @@ class NetValveVpnService : VpnService(), SocketProtector {
     @Inject lateinit var logger: Logger
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val lifecycleMutex = Mutex()
     private var tunInterface: ParcelFileDescriptor? = null
+    private var notificationJob: Job? = null
     @Volatile private var controlledCount = 0
 
     override fun onCreate() {
@@ -71,7 +76,22 @@ class NetValveVpnService : VpnService(), SocketProtector {
         // then do the (fast) establish work off the main thread.
         controller.publishState(TunnelState.STARTING)
         startForeground(NotificationHelper.NOTIFICATION_ID, NotificationHelper.build(this, VpnStatus(TunnelState.STARTING), trafficEngine.statsFlow.value))
-        scope.launch { establishAndStart() }
+        scope.launch {
+            lifecycleMutex.withLock {
+                if (!trafficEngine.isRunning) establishSafely()
+            }
+        }
+    }
+
+    private suspend fun establishSafely() {
+        try {
+            establishAndStart()
+        } catch (t: Throwable) {
+            logger.e(LogCategory.ERROR, "VPN startup failed: ${t.message}")
+            runCatching { trafficEngine.stop() }
+            closeTun()
+            fail("Could not start VPN: ${t.message}")
+        }
     }
 
     private suspend fun establishAndStart() {
@@ -174,21 +194,29 @@ class NetValveVpnService : VpnService(), SocketProtector {
 
     private fun handleStop(persist: Boolean) {
         scope.launch {
-            trafficEngine.stop()
-            closeTun()
-            if (persist) settingsRepository.updateSettings { it.copy(enabled = false) }
-            controller.publish(VpnStatus(TunnelState.STOPPED))
-            stopForegroundCompat()
-            stopSelf()
+            lifecycleMutex.withLock {
+                notificationJob?.cancel()
+                notificationJob = null
+                trafficEngine.stop()
+                closeTun()
+                if (persist) settingsRepository.updateSettings { it.copy(enabled = false) }
+                controller.publish(VpnStatus(TunnelState.STOPPED))
+                stopForegroundCompat()
+                stopSelf()
+            }
         }
     }
 
     /** Rebuild the tunnel to pick up a changed controlled-app set. */
     private fun handleRestart() {
         scope.launch {
-            trafficEngine.stop()
-            closeTun()
-            establishAndStart()
+            lifecycleMutex.withLock {
+                notificationJob?.cancel()
+                notificationJob = null
+                trafficEngine.stop()
+                closeTun()
+                establishSafely()
+            }
         }
     }
 
@@ -208,17 +236,22 @@ class NetValveVpnService : VpnService(), SocketProtector {
     override fun onRevoke() {
         logger.w(LogCategory.SYSTEM, "VPN revoked (another VPN started or permission withdrawn)")
         scope.launch {
-            trafficEngine.stop()
-            closeTun()
-            settingsRepository.updateSettings { it.copy(enabled = false) }
-            controller.publish(VpnStatus(TunnelState.REVOKED, message = "Another VPN took over"))
-            stopForegroundCompat()
-            stopSelf()
+            lifecycleMutex.withLock {
+                notificationJob?.cancel()
+                notificationJob = null
+                trafficEngine.stop()
+                closeTun()
+                settingsRepository.updateSettings { it.copy(enabled = false) }
+                controller.publish(VpnStatus(TunnelState.REVOKED, message = "Another VPN took over"))
+                stopForegroundCompat()
+                stopSelf()
+            }
         }
     }
 
     private fun observeStatsForNotification() {
-        scope.launch {
+        notificationJob?.cancel()
+        notificationJob = scope.launch {
             trafficEngine.statsFlow.collect { snapshot ->
                 val state = if (trafficEngine.isPaused) TunnelState.PAUSED else TunnelState.RUNNING
                 refreshNotification(VpnStatus(state, controlledAppCount = controlledCount), snapshot)
@@ -232,6 +265,8 @@ class NetValveVpnService : VpnService(), SocketProtector {
     }
 
     private fun fail(message: String) {
+        notificationJob?.cancel()
+        notificationJob = null
         controller.publish(VpnStatus(TunnelState.ERROR, message = message))
         scope.launch { settingsRepository.updateSettings { it.copy(enabled = false) } }
         stopForegroundCompat()
@@ -253,6 +288,7 @@ class NetValveVpnService : VpnService(), SocketProtector {
     }
 
     override fun onDestroy() {
+        notificationJob?.cancel()
         scope.cancel()
         super.onDestroy()
     }
