@@ -235,7 +235,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 
 ### Option 1: Download APK (Recommended)
 
-Download the latest pre-built APK from the [Releases page](https://github.com/IEAmir/NetValve/releases).
+Download the latest pre-built APK from the [Releases page](https://github.com/meilide38/NetValve/releases).
 
 > **Note**: The default APK uses the **loopback engine** (drives the UI but does not forward traffic upstream). For real traffic shaping, you need to build with the **netstack engine** — see [Build From Source](#-build-from-source).
 
@@ -258,7 +258,7 @@ See the next section.
 This produces an installable APK using the pure-Kotlin **loopback** engine. It establishes the tunnel, attributes UIDs, records stats, and drives the UI — but **does not forward traffic upstream** (development/CI double).
 
 ```bash
-git clone https://github.com/IEAmir/NetValve.git
+git clone https://github.com/meilide38/NetValve.git
 cd NetValve
 ./gradlew :app:assembleDebug
 ```
@@ -302,7 +302,7 @@ See [`docs/NETSTACK_EVIDENCE.md`](docs/NETSTACK_EVIDENCE.md) for build verificat
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-**Current status**: 33/33 unit tests pass across 7 suites (token bucket, pacing queue, policy evaluator, rule compiler, UID resolver, persistence, formatting).
+**Validation**: The production netstack GitHub Actions workflow runs the JVM unit-test suite and verifies the signed Release APK. Check the latest Actions run for the current result.
 
 ---
 
