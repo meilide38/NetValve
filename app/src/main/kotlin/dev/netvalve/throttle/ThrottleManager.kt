@@ -119,7 +119,13 @@ class ThrottleManager(
             val direction = if (k and 1L == 1L) Direction.DOWNLOAD else Direction.UPLOAD
             val cap = capFor(ruleEngine.policyForUid(uid), direction)
             if (cap == null) {
-                buckets.remove(k)
+                // Existing relay coroutines keep the TokenBucket reference they
+                // received when the flow opened. Removing it from the map alone
+                // does not release those flows from the old cap. Disable the
+                // shared object first so both new and already-open flows become
+                // unlimited immediately.
+                bucket.updateRate(0L, burstFor(1L))
+                buckets.remove(k, bucket)
             } else {
                 bucket.updateRate(cap, burstFor(cap))
             }
