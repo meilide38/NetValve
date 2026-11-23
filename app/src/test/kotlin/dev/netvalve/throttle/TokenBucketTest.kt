@@ -82,6 +82,20 @@ class TokenBucketTest {
     }
 
     @Test
+    fun changingExistingBucketToUnlimitedReleasesAlreadyOpenFlows() {
+        val clock = FakeClock()
+        val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 1000, clock = clock::get)
+
+        bucket.reserveNanos(1000) // consume initial burst
+        assertEquals(1_000_000_000L, bucket.reserveNanos(1000))
+
+        // This is the same bucket reference held by an already-open relay.
+        bucket.updateRate(0, 1)
+        assertEquals("old flow reference must become unlimited", 0L, bucket.reserveNanos(1_000_000))
+        assertEquals(0L, bucket.configuredRate)
+    }
+
+    @Test
     fun updateRateChangesFuturePacing() {
         val clock = FakeClock()
         val bucket = TokenBucket(capacityBytes = 1000, rateBytesPerSec = 1000, clock = clock::get)
