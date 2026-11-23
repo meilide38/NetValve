@@ -71,8 +71,9 @@ class TokenBucket(
 
     /**
      * Change the sustained rate (and optionally the burst capacity) live, e.g.
-     * when a rule changes while a flow is active. Accrued debt/allowance is
-     * preserved; the balance is only clamped to the new capacity ceiling.
+     * when a rule changes while a flow is active. Rate changes preserve the
+     * current balance; transitioning to unlimited clears debt and restores a
+     * fresh burst so a later re-enable does not inherit stale wait time.
      */
     fun updateRate(newRateBytesPerSec: Long, newCapacityBytes: Long = -1) = synchronized(lock) {
         refillLocked()
