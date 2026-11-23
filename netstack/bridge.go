@@ -186,10 +186,14 @@ func (t *Tunnel) rejectV6(dst tcpip.Address) bool {
 // net.Conn-like TCPConn, and hand it to Kotlin.
 func (t *Tunnel) installTCPForwarder() {
 	fwd := tcp.NewForwarder(t.stack, 0 /*rcvWnd: default*/, 2048 /*maxInFlight*/, func(r *tcp.ForwarderRequest) {
-		// A panic here (e.g. a bad flow, a gomobile callback error) would otherwise
-		// crash the entire Go runtime and kill the tunnel. Recover + log instead.
+		// If the gomobile callback panics after endpoint creation, close the
+		// endpoint as well as recovering so the flow count and resources unwind.
+		var handedConn *tcpConn
 		defer func() {
 			if rec := recover(); rec != nil {
+				if handedConn != nil {
+					_ = handedConn.Close()
+				}
 				t.logf(logError, "recovered panic in TCP forwarder: %v", rec)
 			}
 		}()
@@ -210,10 +214,11 @@ func (t *Tunnel) installTCPForwarder() {
 		r.Complete(false)
 		atomic.AddInt64(&t.tcpFlows, 1)
 		conn := gonet.NewTCPConn(&wq, ep)
+		handedConn = &tcpConn{Conn: conn, onClose: func() { atomic.AddInt64(&t.tcpFlows, -1) }}
 		t.handler.HandleTCP(
 			id.RemoteAddress.String(), int(id.RemotePort),
 			id.LocalAddress.String(), int(id.LocalPort),
-			&tcpConn{Conn: conn, onClose: func() { atomic.AddInt64(&t.tcpFlows, -1) }},
+			 handedConn,
 		)
 	})
 	t.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, fwd.HandlePacket)
@@ -225,8 +230,12 @@ func (t *Tunnel) installUDPForwarder() {
 	// udp.ForwarderHandler returns (handled bool): true if we took the flow,
 	// false to let the stack reject it (e.g. emit ICMP unreachable).
 	fwd := udp.NewForwarder(t.stack, func(r *udp.ForwarderRequest) (handled bool) {
+		var handedConn *udpConn
 		defer func() {
 			if rec := recover(); rec != nil {
+				if handedConn != nil {
+					_ = handedConn.Close()
+				}
 				t.logf(logError, "recovered panic in UDP forwarder: %v", rec)
 				handled = false
 			}
@@ -243,10 +252,11 @@ func (t *Tunnel) installUDPForwarder() {
 		}
 		atomic.AddInt64(&t.udpFlows, 1)
 		conn := gonet.NewUDPConn(&wq, ep)
+		handedConn = &udpConn{conn: conn, onClose: func() { atomic.AddInt64(&t.udpFlows, -1) }}
 		t.handler.HandleUDP(
 			id.RemoteAddress.String(), int(id.RemotePort),
 			id.LocalAddress.String(), int(id.LocalPort),
-			&udpConn{conn: conn, onClose: func() { atomic.AddInt64(&t.udpFlows, -1) }},
+			handedConn,
 		)
 		return true
 	})
